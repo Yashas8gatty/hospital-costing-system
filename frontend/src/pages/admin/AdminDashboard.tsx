@@ -119,6 +119,22 @@ function AdminDashboard() {
 
             <button
               type="button"
+              onClick={() => navigate('/admin/audit-logs')}
+              style={{
+                padding: '10px 16px',
+                borderRadius: 10,
+                border: '1px solid #7c3aed',
+                background: '#7c3aed',
+                color: '#fff',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Audit History
+            </button>
+
+            <button
+              type="button"
               onClick={handleLogout}
               style={{
                 padding: '10px 16px',
