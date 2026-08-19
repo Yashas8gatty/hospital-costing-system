@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
-import { api } from '../../services/api';
+import {
+  getAdditionalServices,
+  getPricing,
+} from '../../services/pricingService';
 import type {
   AdditionalService,
   FinancialCategory,
   LimbType,
   PricingRate,
-  PricingResponse,
-  ServicesResponse,
   TreatmentDuration,
 } from '../../types/pricing';
 
@@ -95,16 +96,14 @@ export default function DoctorDashboard() {
     setLoading(true);
 
     try {
-      const pricingResponse = await api.get<PricingResponse>('/pricing', {
-        params: {
-          limbType: formData.limbType,
-          volume: formData.volume,
-          duration: formData.duration,
-          financialCategory: formData.financialCategory,
-        },
-      });
+      const pricingResponse = await getPricing(
+        formData.limbType,
+        formData.volume,
+        formData.duration,
+        formData.financialCategory
+      );
 
-      if (!pricingResponse.data?.data) {
+      if (!pricingResponse.data) {
         setError('No pricing rate found for the selected criteria.');
         setPricing(null);
         setServices([]);
@@ -112,13 +111,13 @@ export default function DoctorDashboard() {
         return;
       }
 
-      const nextPricing = pricingResponse.data.data;
+      const nextPricing = pricingResponse.data;
       setPricing(nextPricing);
 
       setServicesLoading(true);
       try {
-        const servicesResponse = await api.get<ServicesResponse>('/services');
-        setServices(servicesResponse.data.data || []);
+        const servicesResponse = await getAdditionalServices();
+        setServices(servicesResponse.data || []);
         setSelectedServices({});
       } catch (serviceError) {
         console.error('Error loading services:', serviceError);
@@ -128,12 +127,16 @@ export default function DoctorDashboard() {
       } finally {
         setServicesLoading(false);
       }
-    } catch (pricingError: any) {
+    } catch (pricingError: unknown) {
       console.error('Pricing lookup failed:', pricingError);
 
-      if (pricingError?.response?.status === 404) {
+      const axiosError = pricingError as {
+        response?: { status?: number };
+      };
+
+      if (axiosError?.response?.status === 404) {
         setError('No pricing rate found for the given criteria.');
-      } else if (pricingError?.response?.status === 400) {
+      } else if (axiosError?.response?.status === 400) {
         setError('Please check the selected values and try again.');
       } else {
         setError('The pricing service is unavailable. Please try again later.');
