@@ -7,6 +7,8 @@ import serviceRoutes from "./routes/serviceRoutes";
 import adminPricingRoutes from "./routes/adminPricingRoutes";
 import adminServiceRoutes from "./routes/adminServiceRoutes";
 import authRoutes from "./routes/authRoutes";
+import auditRoutes from "./routes/auditRoutes";
+import { ensureAuditTable } from "./config/database";
 
 dotenv.config();
 
@@ -27,9 +29,20 @@ app.use("/api/services", serviceRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin/pricing", adminPricingRoutes);
 app.use("/api/admin/services", adminServiceRoutes);
+app.use("/api/admin/audit-logs", auditRoutes);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+const startServer = async () => {
+  try {
+    await ensureAuditTable();
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to initialize database schema:", error);
+    process.exit(1);
+  }
+};
+
+startServer();

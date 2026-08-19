@@ -190,21 +190,39 @@ function PricingManagement() {
               <h1 style={{ margin: '10px 0 0', fontSize: '2rem' }}>Pricing Management</h1>
             </div>
 
-            <button
-              type="button"
-              onClick={() => window.location.assign('/admin')}
-              style={{
-                padding: '10px 16px',
-                borderRadius: 10,
-                border: '1px solid #cbd5e1',
-                background: '#fff',
-                color: '#334155',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              ← Back
-            </button>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => window.location.assign('/admin/audit-logs')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  color: '#1d4ed8',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                View Audit History
+              </button>
+
+              <button
+                type="button"
+                onClick={() => window.location.assign('/admin')}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: 10,
+                  border: '1px solid #cbd5e1',
+                  background: '#fff',
+                  color: '#334155',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                ← Back
+              </button>
+            </div>
           </div>
 
           <div

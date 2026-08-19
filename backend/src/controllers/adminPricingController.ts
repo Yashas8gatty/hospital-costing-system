@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../config/database";
+import type { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { createAuditLog } from "../services/auditService";
 
 export const getAllPricing = async (
   _req: Request,
@@ -32,12 +34,21 @@ export const getAllPricing = async (
 };
 
 export const updatePricingRate = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response
 ) => {
+  const client = await pool.connect();
+
   try {
     const { id } = req.params;
     const { rate } = req.body;
+    const adminId = req.admin?.adminId;
+
+    if (!adminId) {
+      return res.status(401).json({
+        message: "Authentication required",
+      });
+    }
 
     if (!id) {
       return res.status(400).json({
@@ -59,22 +70,37 @@ export const updatePricingRate = async (
       });
     }
 
-    const existingResult = await pool.query(
+    await client.query("BEGIN");
+
+    const existingResult = await client.query(
       `
-      SELECT id
+      SELECT
+        id,
+        rate
       FROM pricing_rates
       WHERE id = $1
+      FOR UPDATE
       `,
       [pricingId]
     );
 
     if (existingResult.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(404).json({
         message: "Pricing record not found",
       });
     }
 
-    const result = await pool.query(
+    const previousRate = Number(existingResult.rows[0].rate);
+
+    if (previousRate === rate) {
+      await client.query("ROLLBACK");
+      return res.status(200).json({
+        data: existingResult.rows[0],
+      });
+    }
+
+    const result = await client.query(
       `
       UPDATE pricing_rates
       SET rate = $1
@@ -90,13 +116,34 @@ export const updatePricingRate = async (
       [rate, pricingId]
     );
 
+    await createAuditLog(
+      {
+        adminId,
+        action: "UPDATE",
+        entityType: "PRICING",
+        entityId: pricingId,
+        oldValue: {
+          rate: String(previousRate),
+        },
+        newValue: {
+          rate: String(result.rows[0].rate),
+        },
+      },
+      client
+    );
+
+    await client.query("COMMIT");
+
     return res.status(200).json({
       data: result.rows[0],
     });
   } catch (error) {
+    await client.query("ROLLBACK");
     console.error("Error updating pricing rate:", error);
     return res.status(500).json({
       message: "Internal server error",
     });
+  } finally {
+    client.release();
   }
 };
