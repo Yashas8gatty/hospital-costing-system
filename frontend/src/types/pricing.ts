@@ -24,6 +24,10 @@ export interface PricingResponse {
   data: PricingRate;
 }
 
+export interface AdminPricingUpdateResponse {
+  data: PricingRate;
+}
+
 export interface ServicesResponse {
   data: AdditionalService[];
 }
