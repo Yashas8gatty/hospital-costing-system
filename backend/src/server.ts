@@ -6,6 +6,7 @@ import pricingRoutes from "./routes/pricingRoutes";
 import serviceRoutes from "./routes/serviceRoutes";
 import adminPricingRoutes from "./routes/adminPricingRoutes";
 import adminServiceRoutes from "./routes/adminServiceRoutes";
+import authRoutes from "./routes/authRoutes";
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/pricing", pricingRoutes);
 app.use("/api/services", serviceRoutes);
+app.use("/api/auth", authRoutes);
 app.use("/api/admin/pricing", adminPricingRoutes);
 app.use("/api/admin/services", adminServiceRoutes);
 
