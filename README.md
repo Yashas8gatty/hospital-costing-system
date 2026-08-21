@@ -518,6 +518,92 @@ The repository does not include a migration or DDL file. The schema below is inf
 
 - Not explicitly stored in the repo. Version is not documented in the source files checked in.
 
+## Current Application Flows
+
+### Entry and doctor flow
+
+```text
+/                  Login selection
+  ↓
+/doctor/login      Select an active doctor
+  ↓
+/doctor            Treatment cost calculator
+  ↓
+/doctor/report/:id Saved calculation report
+```
+
+The selected doctor is stored in the browser session under `selectedDoctor`. This is identification state, not password authentication. Opening `/doctor` without a selected doctor redirects to `/doctor/login`.
+
+### Admin flow
+
+```text
+/admin/login       JWT login
+  ↓
+/admin             Admin dashboard
+  ├─ /admin/pricing
+  ├─ /admin/services
+  ├─ /admin/doctors
+  └─ /admin/audit-logs
+```
+
+Admin pricing, service, doctor, and audit endpoints require the existing JWT middleware.
+
+## Doctor and Calculation Data
+
+The backend initializes the `doctors` table and seeds the seven active development doctors. `GET /api/doctors` exposes only active profiles. Admin doctor management can create, edit, activate, and deactivate records; doctors are never deleted.
+
+Calculations are stored in `calculation_records` with:
+
+- patient name and age
+- doctor foreign key
+- treatment fields
+- base-rate snapshot
+- JSONB additional-service price snapshots
+- additional-service total and total cost
+- `DRAFT` or `FINAL` status
+- created and updated timestamps
+
+The report reads historical values from PostgreSQL. It does not perform a new pricing or service lookup.
+
+## Report and PDF Flow
+
+```text
+Save calculation
+  ↓ DRAFT
+GET /api/calculations/:id
+  ↓
+Report preview
+  ↓
+PUT /api/calculations/:id/finalize
+  ↓ FINAL
+GET /api/calculations/:id/pdf
+  ↓
+Backend Playwright A4 PDF download
+```
+
+The report reserves exactly 50mm at the top for physical letterhead. Final PDFs are generated server-side with Playwright and Chromium from saved calculation data. Current pricing and service tables are not queried during PDF generation.
+
+## Audit History
+
+Audit entries retain `record_id` for internal reference and `record_context` JSONB for historical identification. Pricing context includes limb type, volume range, duration, and financial category. Service context includes the service name. Existing rows may have `record_context = null`.
+
+## Migrations
+
+Recorded SQL migrations are under `backend/database/migrations/`:
+
+- `002_create_calculation_records.sql`
+- `003_add_audit_record_context.sql`
+
+The current server also performs idempotent startup checks for required tables and columns.
+
+## Verification Commands
+
+```powershell
+Push-Location backend; npm run build; Pop-Location
+Push-Location frontend; npm run build; Pop-Location
+Push-Location frontend; npm run lint; Pop-Location
+```
+
 ### Tables
 
 #### `pricing_rates`

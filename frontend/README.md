@@ -383,3 +383,81 @@ The underlying script:
 
 Backend API, auth behavior, and database schema details are documented in the repository root README and backend README.
 
+## Current Routes
+
+```text
+/                         Login selection
+/admin/login              Admin login
+/admin                    Admin dashboard
+/admin/pricing            Pricing management
+/admin/services           Additional service management
+/admin/doctors            Doctor management
+/admin/audit-logs          Audit history
+/doctor/login             Doctor selection
+/doctor                   Doctor calculator
+/doctor/report/:id         Saved calculation report
+```
+
+## Doctor Selection
+
+`DoctorLogin.tsx` loads active profiles from `GET /api/doctors`. Selecting a profile stores only this identity in `localStorage` under `selectedDoctor`:
+
+```json
+{
+  "id": 7,
+  "name": "Dr S R Narahari",
+  "designation": "MD, DVD (Modern Dermatology)"
+}
+```
+
+The doctor dashboard displays the selected identity and clears it when the doctor logs out. No doctor password or JWT is used.
+
+## Calculation and Report Flow
+
+`DoctorDashboard.tsx` collects patient details and existing treatment fields, calculates the cost using the current pricing/service APIs, and saves a historical snapshot through `POST /api/calculations`.
+
+The report page loads saved data through `GET /api/calculations/:id`. It displays the database doctor details, patient details, treatment details, saved base rate, saved JSONB service snapshots, total, report ID, and created date. The report reserves 50mm for physical letterhead.
+
+Draft reports can be finalized through `PUT /api/calculations/:id/finalize`. Final reports expose the Download PDF action and hide Edit Calculation. PDF generation is handled by the backend Playwright endpoint `GET /api/calculations/:id/pdf`.
+
+## PDF Download
+
+The frontend requests a finalized PDF as a binary Axios response:
+
+```text
+GET /api/calculations/:id/pdf
+```
+
+The browser downloads the backend-generated file using:
+
+```text
+calculation-report-000001.pdf
+```
+
+The frontend does not generate PDFs and does not query pricing or service APIs during download.
+
+## Admin Audit History
+
+The Audit History page keeps only the Section and Action filters. It receives `record_context` directly from the audit API and formats human-readable Record values without additional pricing or service requests:
+
+- pricing: `Unilateral · 0–2 L · 7 days · Category 1`
+- service: `ULCER CARE`
+- missing context: `Record #1`
+
+The Admin column remains visible as historical audit information, but there is no Admin filter.
+
+## Additional Frontend Services
+
+- `doctorService.ts`: public doctor lookup and selected-doctor session state.
+- `adminDoctorService.ts`: admin-only doctor management.
+- `calculationService.ts`: create, retrieve, finalize, and download calculation reports.
+- `auditService.ts`: audit log retrieval with record context.
+
+## Current Verification
+
+```powershell
+npm run build
+npx eslint src/pages/admin/AuditLogs.tsx src/services/auditService.ts
+npx eslint src/pages/doctor/CalculationReportPlaceholder.tsx src/services/calculationService.ts
+```
+

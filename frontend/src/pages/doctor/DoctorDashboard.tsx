@@ -13,6 +13,7 @@ import type {
 } from '../../types/pricing';
 import AppHeader from '../../components/layout/AppHeader';
 import { clearSelectedDoctor, getSelectedDoctor } from '../../services/doctorService';
+import { createCalculation } from '../../services/calculationService';
 
 type FormState = {
   limbType: LimbType;
@@ -46,6 +47,11 @@ export default function DoctorDashboard() {
   const [servicesLoading, setServicesLoading] = useState(false);
   const [error, setError] = useState('');
   const [volumeError, setVolumeError] = useState('');
+  const [patientName, setPatientName] = useState('');
+  const [patientAge, setPatientAge] = useState('');
+  const [patientError, setPatientError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const handleDoctorLogout = () => {
     clearSelectedDoctor();
@@ -79,6 +85,10 @@ export default function DoctorDashboard() {
 
   const resetCalculator = () => {
     setFormData(initialForm);
+    setPatientName('');
+    setPatientAge('');
+    setPatientError('');
+    setSaveError('');
     setPricing(null);
     setServices([]);
     setSelectedServices({});
@@ -86,6 +96,63 @@ export default function DoctorDashboard() {
     setVolumeError('');
     setLoading(false);
     setServicesLoading(false);
+  };
+
+  const handleSaveCalculation = async () => {
+    const trimmedPatientName = patientName.trim();
+    const parsedPatientAge = Number(patientAge.trim());
+
+    if (!trimmedPatientName) {
+      setPatientError('Patient name is required.');
+      return;
+    }
+
+    if (!patientAge.trim() || !Number.isInteger(parsedPatientAge) || parsedPatientAge < 0 || parsedPatientAge > 150) {
+      setPatientError('Patient age must be a whole number between 0 and 150.');
+      return;
+    }
+
+    if (!selectedDoctor || !pricing) {
+      setSaveError('Calculate a cost before saving.');
+      return;
+    }
+
+    const selectedServiceSnapshots = services
+      .filter((service) => selectedServices[Number(service.id)])
+      .map((service) => ({
+        service_id: Number(service.id),
+        service_name: service.service_name,
+        cost_per_day: Number(service.cost_per_day),
+        duration_days: Number(formData.duration),
+        total_cost: Number(service.cost_per_day) * Number(formData.duration),
+      }));
+
+    setSaving(true);
+    setPatientError('');
+    setSaveError('');
+
+    try {
+      const calculation = await createCalculation({
+        doctor_id: selectedDoctor.id,
+        patient_name: trimmedPatientName,
+        patient_age: parsedPatientAge,
+        limb_type: formData.limbType,
+        volume: Number(formData.volume),
+        duration_days: formData.duration,
+        financial_category: formData.financialCategory,
+        base_rate: baseTreatment,
+        services: selectedServiceSnapshots,
+        additional_services_total: additionalServicesTotal,
+        total_cost: totalEstimatedCost,
+      });
+
+      navigate(`/doctor/report/${calculation.id}`);
+    } catch (error) {
+      console.error('Calculation save failed:', error);
+      setSaveError('Unable to save the calculation. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleInputChange = (
@@ -204,6 +271,33 @@ export default function DoctorDashboard() {
 
           <form onSubmit={handleSubmit}>
             <section className="panel">
+              <h2 className="section-label">Patient Details</h2>
+              <div className="form-grid patient-details-grid">
+                <label className="field">
+                  <span>Patient Name</span>
+                  <input
+                    type="text"
+                    value={patientName}
+                    onChange={(event) => { setPatientName(event.target.value); setPatientError(''); }}
+                    placeholder="Enter patient name"
+                  />
+                </label>
+                <label className="field">
+                  <span>Patient Age</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="150"
+                    step="1"
+                    value={patientAge}
+                    onChange={(event) => { setPatientAge(event.target.value); setPatientError(''); }}
+                    placeholder="Enter age"
+                  />
+                </label>
+              </div>
+              {patientError && <small className="inline-error">{patientError}</small>}
+            </section>
+            <section className="panel">
               <h2 className="section-label">Treatment Details</h2>
               <div className="form-grid">
                 <label className="field">
@@ -299,6 +393,8 @@ export default function DoctorDashboard() {
         </div>
       )}
 
+      {saveError && <div className="alert">{saveError}</div>}
+
       {pricing && (
         <section className="panel cost-summary">
           <h2 className="section-label">
@@ -318,6 +414,11 @@ export default function DoctorDashboard() {
               <span><strong>Total Estimated Cost</strong></span>
               <strong className="cost-total">{formatCurrency(totalEstimatedCost)}</strong>
             </div>
+          </div>
+          <div className="actions calculator-actions">
+            <button className="primary-button" type="button" onClick={() => void handleSaveCalculation()} disabled={saving}>
+              {saving ? 'Saving...' : 'Save Calculation'}
+            </button>
           </div>
         </section>
       )}
