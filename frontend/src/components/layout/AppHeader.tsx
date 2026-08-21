@@ -1,5 +1,6 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Doctor } from '../../types/doctor';
+import { logout } from '../../services/authService';
 
 type AppHeaderProps = {
   role: 'Doctor' | 'Admin';
@@ -8,7 +9,9 @@ type AppHeaderProps = {
 };
 
 export default function AppHeader({ role, onLogout, doctor }: AppHeaderProps) {
+  const navigate = useNavigate();
   const location = useLocation();
+  const handleLogout = onLogout ?? (role === 'Admin' ? () => logout(navigate) : undefined);
 
   return (
     <>
@@ -20,8 +23,8 @@ export default function AppHeader({ role, onLogout, doctor }: AppHeaderProps) {
           <div className="app-header__tools">
             {role === 'Doctor' && doctor && <span className="doctor-identity"><strong>{doctor.name}</strong><small>{doctor.designation}</small></span>}
             <span className="role-label"><span className="role-dot" />{role}</span>
-            {onLogout ? (
-              <button className="text-button" type="button" onClick={onLogout}>
+            {handleLogout ? (
+              <button className="text-button" type="button" onClick={handleLogout}>
                 Log out
               </button>
             ) : <span className="text-button" aria-label="Doctor logout">Log out</span>}
