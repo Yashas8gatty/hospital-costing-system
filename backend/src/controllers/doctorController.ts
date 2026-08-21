@@ -88,6 +88,9 @@ export const createDoctor = async (req: AuthenticatedRequest, res: Response) => 
         action: "CREATE",
         entityType: "DOCTOR",
         entityId: doctor.id,
+        recordContext: {
+          name: doctor.name,
+        },
         oldValue: null,
         newValue: {
           name: doctor.name,
@@ -192,6 +195,9 @@ export const updateDoctor = async (req: AuthenticatedRequest, res: Response) => 
         action,
         entityType: "DOCTOR",
         entityId: doctorId,
+        recordContext: {
+          name: result.rows[0].name,
+        },
         oldValue: onlyActiveChanged ? { active: oldSnapshot.active } : oldSnapshot,
         newValue: onlyActiveChanged ? { active: updatedDoctor.active } : updatedDoctor,
       },

@@ -10,6 +10,7 @@ export interface AuditLogRecord {
   action: AuditAction;
   entity_type: AuditEntityType;
   entity_id: string;
+  record_context: Record<string, unknown> | null;
   old_value: Record<string, unknown> | null;
   new_value: Record<string, unknown> | null;
   created_at: string;
@@ -18,7 +19,6 @@ export interface AuditLogRecord {
 export interface AuditLogFilters {
   entityType?: AuditEntityType;
   action?: string;
-  adminId?: string;
 }
 
 export type AuditLogResponse = {

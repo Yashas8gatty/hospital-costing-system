@@ -76,6 +76,10 @@ export const updatePricingRate = async (
       `
       SELECT
         id,
+        limb_type,
+        volume_range,
+        duration_days,
+        financial_category,
         rate
       FROM pricing_rates
       WHERE id = $1
@@ -122,6 +126,12 @@ export const updatePricingRate = async (
         action: "UPDATE",
         entityType: "PRICING",
         entityId: pricingId,
+        recordContext: {
+          limb_type: result.rows[0].limb_type,
+          volume_range: String(result.rows[0].volume_range),
+          duration_days: result.rows[0].duration_days,
+          financial_category: result.rows[0].financial_category,
+        },
         oldValue: {
           rate: String(previousRate),
         },

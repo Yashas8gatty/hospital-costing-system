@@ -44,6 +44,7 @@ export const getAuditLogs = async (
           al.action,
           al.entity_type,
           al.entity_id,
+          al.record_context,
           al.old_value,
           al.new_value,
           al.created_at

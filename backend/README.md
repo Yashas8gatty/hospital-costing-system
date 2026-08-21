@@ -391,3 +391,113 @@ npm start
 ## Cross-reference
 
 The backend database schema and import flow are documented in the root README at the repository level.
+
+## Current Routes
+
+### Doctor routes
+
+Public:
+
+- `GET /api/doctors` - returns active doctors with `id`, `name`, and `designation`.
+- `POST /api/calculations` - validates and saves a new `DRAFT` calculation.
+- `GET /api/calculations/:id` - returns a saved calculation with its doctor object and historical service snapshots.
+- `GET /api/calculations/:id/pdf` - returns a finalized calculation as an A4 PDF.
+
+Admin-protected:
+
+- `GET /api/admin/doctors` - returns active and inactive doctors.
+- `POST /api/admin/doctors` - creates an active doctor.
+- `PUT /api/admin/doctors/:id` - edits doctor fields or active status.
+
+Calculation finalization:
+
+- `PUT /api/calculations/:id/finalize` - changes `DRAFT` to `FINAL`; repeated finalization is idempotent.
+
+The PDF endpoint returns `409` while a calculation is still `DRAFT`, `404` when it does not exist, and `500` when generation fails.
+
+## Calculation Persistence
+
+`calculation_records` stores the complete historical calculation. The `services` JSONB column contains service snapshots with:
+
+```json
+{
+  "service_id": 1,
+  "service_name": "ULCER CARE",
+  "cost_per_day": 400,
+  "duration_days": 7,
+  "total_cost": 2800
+}
+```
+
+The create controller validates doctor activity, patient details, treatment fields, service snapshot structure, and total consistency before insertion. It calculates stored totals from the supplied snapshots rather than trusting the submitted aggregate values.
+
+## Playwright PDF Generation
+
+PDF generation is implemented in `src/services/pdfService.ts` with `playwright` and Chromium. The service:
+
+- receives calculation data from the controller
+- builds the approved report HTML structure
+- reserves the 50mm letterhead area
+- uses A4 portrait printing with background colors
+- returns a PDF buffer
+
+Install the backend package and Chromium browser once:
+
+```powershell
+npm install
+npx playwright install chromium
+```
+
+The response uses:
+
+```text
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="calculation-report-000001.pdf"
+```
+
+## Doctors Table
+
+The runtime schema is:
+
+```sql
+CREATE TABLE doctors (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(160) NOT NULL,
+  designation VARCHAR(160) NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+No doctor passwords, images, or authentication credentials are stored.
+
+## Audit Record Context
+
+`audit_logs.record_context JSONB` stores historical identifying fields without removing `entity_id`:
+
+Pricing:
+
+```json
+{
+  "limb_type": "UNILATERAL",
+  "volume_range": "[0,2.0)",
+  "duration_days": 7,
+  "financial_category": 1
+}
+```
+
+Services store `{ "service_name": "ULCER CARE" }`. The context is written inside the existing pricing/service transactions and returned by `GET /api/admin/audit-logs`.
+
+The migration is recorded at `database/migrations/003_add_audit_record_context.sql`. Existing audit rows may contain `NULL` context.
+
+## Current Build Checks
+
+```powershell
+npm run build
+```
+
+For local PDF verification, start the server after installing Chromium:
+
+```powershell
+npm run dev
+```

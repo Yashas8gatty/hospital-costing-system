@@ -31,6 +31,57 @@ const formatMoney = (value: string | number | null | undefined): string => {
   }).format(numericValue);
 };
 
+const formatVolumeRange = (value: string): string => {
+  const match = value.match(/^\[?\s*([^,]+)\s*,\s*([^\])]+)\)?$/);
+
+  if (!match) {
+    return value;
+  }
+
+  const formatNumber = (part: string): string => {
+    const numericValue = Number(part);
+    return Number.isFinite(numericValue) ? String(numericValue) : part.trim();
+  };
+
+  return `${formatNumber(match[1])}–${formatNumber(match[2])} L`;
+};
+
+const getRecordLabel = (record: AuditLogRecord): string => {
+  const snapshot = record.record_context ?? record.new_value ?? record.old_value;
+
+  if (record.entity_type === 'SERVICE') {
+    return typeof snapshot?.service_name === 'string'
+      ? snapshot.service_name
+      : 'Service';
+  }
+
+  if (record.entity_type === 'DOCTOR') {
+    return typeof snapshot?.name === 'string' ? snapshot.name : 'Doctor';
+  }
+
+  if (record.entity_type === 'PRICING') {
+    const limbType = snapshot?.limb_type;
+    const volumeRange = snapshot?.volume_range;
+    const durationDays = snapshot?.duration_days;
+    const financialCategory = snapshot?.financial_category;
+
+    if (
+      typeof limbType === 'string' &&
+      typeof volumeRange === 'string' &&
+      typeof durationDays === 'number' &&
+      typeof financialCategory === 'number'
+    ) {
+      const readableLimbType = limbType.toLowerCase().replace('_', ' ')
+        .replace(/^\w/, (letter) => letter.toUpperCase());
+      return `${readableLimbType} · ${formatVolumeRange(volumeRange)} · ${durationDays} days · Category ${financialCategory}`;
+    }
+
+    return `Record #${record.entity_id}`;
+  }
+
+  return `Record #${record.entity_id}`;
+};
+
 const formatChangeText = (record: AuditLogRecord): string => {
   const { action, entity_type, old_value, new_value } = record;
 
@@ -144,36 +195,13 @@ function AuditLogs() {
     void fetchLogs();
   }, [entityTypeFilter, actionFilter]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [entityTypeFilter, actionFilter]);
-
-  const adminOptions = useMemo(() => {
-    const uniqueAdmins = new Map<string, string>();
-
-    logs.forEach((log) => {
-      if (!uniqueAdmins.has(log.admin_username)) {
-        uniqueAdmins.set(log.admin_username, log.admin_username);
-      }
-    });
-
-    return ['All', ...Array.from(uniqueAdmins.values())];
-  }, [logs]);
-
-  const [adminFilter, setAdminFilter] = useState<'All' | string>('All');
-
-  useEffect(() => {
-    setAdminFilter('All');
-  }, [entityTypeFilter, actionFilter]);
-
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
       const matchesEntity = entityTypeFilter === 'All' || log.entity_type === entityTypeFilter;
       const matchesAction = actionFilter === 'All' || log.action === actionFilter;
-      const matchesAdmin = adminFilter === 'All' || log.admin_username === adminFilter;
-      return matchesEntity && matchesAction && matchesAdmin;
+      return matchesEntity && matchesAction;
     });
-  }, [logs, entityTypeFilter, actionFilter, adminFilter]);
+  }, [logs, entityTypeFilter, actionFilter]);
 
   const totalRecords = filteredLogs.length;
   const totalPages = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
@@ -191,6 +219,7 @@ function AuditLogs() {
 
     setEntityTypeFilter(nextEntityType);
     setActionFilter(nextAction);
+    setPage(1);
   };
 
   return (
@@ -214,7 +243,7 @@ function AuditLogs() {
             </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16, marginBottom: 20 }}>
             <label style={{ display: 'grid', gap: 8, fontWeight: 600 }}>
               <span>Section</span>
               <select
@@ -244,18 +273,6 @@ function AuditLogs() {
               </select>
             </label>
 
-            <label style={{ display: 'grid', gap: 8, fontWeight: 600 }}>
-              <span>Admin</span>
-              <select
-                value={adminFilter}
-                onChange={(event) => setAdminFilter(event.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, border: '1px solid #cbd5e1', background: '#fff', color: '#0f172a' }}
-              >
-                {adminOptions.map((option) => (
-                  <option key={option} value={option}>{option === 'All' ? 'All admins' : option}</option>
-                ))}
-              </select>
-            </label>
           </div>
 
           {error && (
@@ -296,7 +313,7 @@ function AuditLogs() {
                         log.action === 'ACTIVATE' ? 'Activated' :
                         log.action === 'DEACTIVATE' ? 'Deactivated' : log.action;
 
-                      const recordLabel = log.entity_type === 'PRICING' ? `#${log.entity_id}` : log.entity_type === 'SERVICE' ? `#${log.entity_id}` : `#${log.entity_id}`;
+                      const recordLabel = getRecordLabel(log);
 
                       return (
                         <tr key={log.id} style={{ borderBottom: '1px solid #e2e8f0' }}>

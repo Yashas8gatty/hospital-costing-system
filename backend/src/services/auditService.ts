@@ -9,6 +9,7 @@ export interface CreateAuditLogInput {
   action: AuditAction | string;
   entityType: AuditEntityType | string;
   entityId: number | string;
+  recordContext?: Record<string, unknown> | null;
   oldValue?: Record<string, unknown> | null;
   newValue?: Record<string, unknown> | null;
 }
@@ -19,6 +20,7 @@ export const createAuditLog = async (
     action,
     entityType,
     entityId,
+    recordContext,
     oldValue,
     newValue,
   }: CreateAuditLogInput,
@@ -40,16 +42,18 @@ export const createAuditLog = async (
         action,
         entity_type,
         entity_id,
+        record_context,
         old_value,
         new_value
       )
-      VALUES ($1, $2, $3, $4, $5, $6)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
     `,
     [
       adminId,
       action,
       entityType,
       normalizedEntityId,
+      recordContext ?? null,
       oldValue ?? null,
       newValue ?? null,
     ]

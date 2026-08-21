@@ -94,6 +94,9 @@ export const createService = async (
         action: "CREATE",
         entityType: "SERVICE",
         entityId: result.rows[0].id,
+        recordContext: {
+          service_name: result.rows[0].service_name,
+        },
         oldValue: null,
         newValue: {
           service_name: result.rows[0].service_name,
@@ -277,6 +280,9 @@ export const updateService = async (
         action,
         entityType: "SERVICE",
         entityId: serviceId,
+        recordContext: {
+          service_name: result.rows[0].service_name,
+        },
         oldValue: Object.keys(oldValue).length > 0 ? oldValue : null,
         newValue: Object.keys(newValue).length > 0 ? newValue : null,
       },

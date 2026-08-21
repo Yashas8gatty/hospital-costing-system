@@ -8,6 +8,7 @@ import ServicesManagement from './pages/admin/ServicesManagement';
 import DoctorManagement from './pages/admin/DoctorManagement';
 import DoctorDashboard from './pages/doctor/DoctorDashboard';
 import DoctorLogin from './pages/doctor/DoctorLogin';
+import CalculationReportPlaceholder from './pages/doctor/CalculationReportPlaceholder';
 import LoginSelection from './pages/LoginSelection';
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
         <Route path="/admin/audit-logs" element={<AuditLogs />} />
         <Route path="/doctor/login" element={<DoctorLogin />} />
         <Route path="/doctor" element={<DoctorDashboard />} />
+        <Route path="/doctor/report/:id" element={<CalculationReportPlaceholder />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
