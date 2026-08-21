@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const publicApiPaths = new Set(['/pricing', '/services', '/health', '/auth/login']);
+const publicApiPaths = new Set(['/pricing', '/services', '/health', '/auth/login', '/doctors']);
 
 const getNormalizedUrl = (url: string | undefined): string => {
   if (!url) {

@@ -1,0 +1,53 @@
+import { Link, useLocation } from 'react-router-dom';
+import type { Doctor } from '../../types/doctor';
+
+type AppHeaderProps = {
+  role: 'Doctor' | 'Admin';
+  onLogout?: () => void;
+  doctor?: Doctor | null;
+};
+
+export default function AppHeader({ role, onLogout, doctor }: AppHeaderProps) {
+  const location = useLocation();
+
+  return (
+    <>
+      <header className="app-header">
+        <div className="app-header__inner">
+          <Link className="brand" to={role === 'Admin' ? '/admin' : '/doctor'} aria-label="Institute of Applied Dermatology">
+            <img src="/images/iad-logo.png" alt="Institute of Applied Dermatology" />
+          </Link>
+          <div className="app-header__tools">
+            {role === 'Doctor' && doctor && <span className="doctor-identity"><strong>{doctor.name}</strong><small>{doctor.designation}</small></span>}
+            <span className="role-label"><span className="role-dot" />{role}</span>
+            {onLogout ? (
+              <button className="text-button" type="button" onClick={onLogout}>
+                Log out
+              </button>
+            ) : <span className="text-button" aria-label="Doctor logout">Log out</span>}
+          </div>
+        </div>
+      </header>
+      {role === 'Admin' ? <AdminNavigation /> : <nav className="app-nav" aria-label="Doctor navigation"><div className="app-nav__inner"><Link className={`app-nav__link${location.pathname === '/doctor' ? ' app-nav__link--active' : ''}`} to="/doctor">Doctor Dashboard</Link></div></nav>}
+    </>
+  );
+}
+
+function AdminNavigation() {
+  const location = useLocation();
+  const links = [
+    ['/admin', 'Dashboard'],
+    ['/admin/pricing', 'Pricing Management'],
+    ['/admin/services', 'Additional Services'],
+    ['/admin/doctors', 'Doctors'],
+    ['/admin/audit-logs', 'Audit Logs'],
+  ];
+
+  return (
+    <nav className="app-nav" aria-label="Admin navigation">
+      <div className="app-nav__inner">
+        {links.map(([href, label]) => <Link key={href} className={`app-nav__link${location.pathname === href ? ' app-nav__link--active' : ''}`} to={href}>{label}</Link>)}
+      </div>
+    </nav>
+  );
+}

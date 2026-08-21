@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { getAuditLogs, type AuditLogRecord } from '../../services/auditService';
+import AppHeader from '../../components/layout/AppHeader';
 
 const PAGE_SIZE = 25;
 
@@ -48,6 +49,16 @@ const formatChangeText = (record: AuditLogRecord): string => {
     return 'Pricing updated';
   }
 
+  if (entity_type === 'DOCTOR') {
+    const oldName = typeof old_value?.name === 'string' ? old_value.name : '';
+    const newName = typeof new_value?.name === 'string' ? new_value.name : '';
+
+    if (action === 'CREATE') return newName || 'New Doctor';
+    if (action === 'DEACTIVATE' || action === 'ACTIVATE') return oldName || newName || 'Doctor';
+    if (oldName && newName && oldName !== newName) return `${oldName} → ${newName}`;
+    return 'Doctor updated';
+  }
+
   if (entity_type === 'SERVICE') {
     const oldServiceName = typeof old_value?.service_name === 'string' ? old_value.service_name : '';
     const newServiceName = typeof new_value?.service_name === 'string' ? new_value.service_name : '';
@@ -87,14 +98,14 @@ const formatChangeText = (record: AuditLogRecord): string => {
 };
 
 const getInitialFilterState = (search: URLSearchParams): {
-  entityType: 'All' | 'PRICING' | 'SERVICE';
+  entityType: 'All' | 'PRICING' | 'SERVICE' | 'DOCTOR';
   action: 'All' | 'CREATE' | 'UPDATE' | 'ACTIVATE' | 'DEACTIVATE';
 } => {
   const entityType = search.get('entityType');
   const action = search.get('action');
 
   return {
-    entityType: entityType === 'PRICING' || entityType === 'SERVICE' ? entityType : 'All',
+    entityType: entityType === 'PRICING' || entityType === 'SERVICE' || entityType === 'DOCTOR' ? entityType : 'All',
     action: action === 'CREATE' || action === 'UPDATE' || action === 'ACTIVATE' || action === 'DEACTIVATE' ? action : 'All',
   };
 };
@@ -108,7 +119,7 @@ function AuditLogs() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
-  const [entityTypeFilter, setEntityTypeFilter] = useState<'All' | 'PRICING' | 'SERVICE'>(() => getInitialFilterState(searchParams).entityType);
+  const [entityTypeFilter, setEntityTypeFilter] = useState<'All' | 'PRICING' | 'SERVICE' | 'DOCTOR'>(() => getInitialFilterState(searchParams).entityType);
   const [actionFilter, setActionFilter] = useState<'All' | 'CREATE' | 'UPDATE' | 'ACTIVATE' | 'DEACTIVATE'>(() => getInitialFilterState(searchParams).action);
 
   useEffect(() => {
@@ -171,7 +182,7 @@ function AuditLogs() {
   const endIndex = Math.min(startIndex + PAGE_SIZE, totalRecords);
   const currentPageLogs = filteredLogs.slice(startIndex, endIndex);
 
-  const handleFilterChange = (nextEntityType: 'All' | 'PRICING' | 'SERVICE', nextAction: 'All' | 'CREATE' | 'UPDATE' | 'ACTIVATE' | 'DEACTIVATE') => {
+  const handleFilterChange = (nextEntityType: 'All' | 'PRICING' | 'SERVICE' | 'DOCTOR', nextAction: 'All' | 'CREATE' | 'UPDATE' | 'ACTIVATE' | 'DEACTIVATE') => {
     const params = new URLSearchParams();
     if (nextEntityType !== 'All') params.set('entityType', nextEntityType);
     if (nextAction !== 'All') params.set('action', nextAction);
@@ -183,7 +194,9 @@ function AuditLogs() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f9fc', padding: '32px 24px', fontFamily: 'Segoe UI, Arial, sans-serif', color: '#0f172a' }}>
+    <>
+      <AppHeader role="Admin" />
+      <div className="legacy-admin-page app-page" style={{ minHeight: '100vh', background: '#f7f9fc', padding: '32px 24px', fontFamily: 'Segoe UI, Arial, sans-serif', color: '#0f172a' }}>
       <div style={{ maxWidth: 1300, margin: '0 auto' }}>
         <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, padding: 28 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 24 }}>
@@ -212,6 +225,7 @@ function AuditLogs() {
                 <option value="All">All</option>
                 <option value="PRICING">Pricing</option>
                 <option value="SERVICE">Services</option>
+                <option value="DOCTOR">Doctors</option>
               </select>
             </label>
 
@@ -324,7 +338,8 @@ function AuditLogs() {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

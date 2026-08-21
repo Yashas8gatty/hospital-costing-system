@@ -2,7 +2,7 @@ import type { PoolClient } from "pg";
 import { pool } from "../config/database";
 
 export type AuditAction = "CREATE" | "UPDATE" | "DEACTIVATE" | "ACTIVATE";
-export type AuditEntityType = "PRICING" | "SERVICE";
+export type AuditEntityType = "PRICING" | "SERVICE" | "DOCTOR";
 
 export interface CreateAuditLogInput {
   adminId: number;

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { getAdminPricing, updatePricingRate } from '../../services/adminPricingService';
 import type { PricingRate } from '../../types/pricing';
+import AppHeader from '../../components/layout/AppHeader';
 
 const PAGE_SIZE = 25;
 
@@ -154,7 +155,9 @@ function PricingManagement() {
   };
 
   return (
-    <div
+    <>
+      <AppHeader role="Admin" />
+      <div className="legacy-admin-page app-page"
       style={{
         minHeight: '100vh',
         background: '#f7f9fc',
@@ -555,7 +558,8 @@ function PricingManagement() {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

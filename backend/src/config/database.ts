@@ -22,6 +22,16 @@ const AUDIT_LOG_TABLE_SQL = `
     ON audit_logs (entity_type, action, admin_id, created_at DESC);
 `;
 
+const DOCTORS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS doctors (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(160) NOT NULL,
+    designation VARCHAR(160) NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+`;
+
 export const pool = new Pool({
   host: process.env.DB_HOST,
   port: Number(process.env.DB_PORT),
@@ -32,6 +42,46 @@ export const pool = new Pool({
 
 export const ensureAuditTable = async (): Promise<void> => {
   await pool.query(AUDIT_LOG_TABLE_SQL);
+};
+
+export const ensureDoctorsTable = async (): Promise<void> => {
+  await pool.query(DOCTORS_TABLE_SQL);
+  await pool.query(
+    `
+    UPDATE doctors
+    SET active = TRUE
+    WHERE (name, designation) IN (
+      ('Dr S R Narahari', 'MD, DVD (Modern Dermatology)'),
+      ('Dr. K.S. Prasanna', 'Chief Consultant Dermatologist'),
+      ('Dr. Guruprasad Aggithaya', 'Chief Ayurveda Consultant'),
+      ('Dr. Pallavi', 'Ayurveda Consultant'),
+      ('Dr. Sidharth Vijayan', 'Jr. Ayurveda Consultant'),
+      ('Dr Dev Prasad', 'Jr. Ayurveda Consultant'),
+      ('Dr. Arunachalam.A', 'Jr. Ayurveda Consultant')
+    )
+    `
+  );
+  await pool.query(
+    `
+    INSERT INTO doctors (name, designation)
+    SELECT seed.name, seed.designation
+    FROM (VALUES
+      ('Dr S R Narahari', 'MD, DVD (Modern Dermatology)'),
+      ('Dr. K.S. Prasanna', 'Chief Consultant Dermatologist'),
+      ('Dr. Guruprasad Aggithaya', 'Chief Ayurveda Consultant'),
+      ('Dr. Pallavi', 'Ayurveda Consultant'),
+      ('Dr. Sidharth Vijayan', 'Jr. Ayurveda Consultant'),
+      ('Dr Dev Prasad', 'Jr. Ayurveda Consultant'),
+      ('Dr. Arunachalam.A', 'Jr. Ayurveda Consultant')
+    ) AS seed(name, designation)
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM doctors
+      WHERE doctors.name = seed.name
+        AND doctors.designation = seed.designation
+    )
+    `
+  );
 };
 
 pool.on("connect", () => {

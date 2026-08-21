@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   getAdditionalServices,
   getPricing,
@@ -10,6 +11,8 @@ import type {
   PricingRate,
   TreatmentDuration,
 } from '../../types/pricing';
+import AppHeader from '../../components/layout/AppHeader';
+import { clearSelectedDoctor, getSelectedDoctor } from '../../services/doctorService';
 
 type FormState = {
   limbType: LimbType;
@@ -33,6 +36,8 @@ const formatCurrency = (value: number | string) =>
   }).format(Number(value));
 
 export default function DoctorDashboard() {
+  const navigate = useNavigate();
+  const selectedDoctor = getSelectedDoctor();
   const [formData, setFormData] = useState<FormState>(initialForm);
   const [pricing, setPricing] = useState<PricingRate | null>(null);
   const [services, setServices] = useState<AdditionalService[]>([]);
@@ -41,6 +46,21 @@ export default function DoctorDashboard() {
   const [servicesLoading, setServicesLoading] = useState(false);
   const [error, setError] = useState('');
   const [volumeError, setVolumeError] = useState('');
+
+  const handleDoctorLogout = () => {
+    clearSelectedDoctor();
+    navigate('/doctor/login', { replace: true });
+  };
+
+  useEffect(() => {
+    const doctor = getSelectedDoctor();
+
+    if (!doctor) {
+      navigate('/doctor/login', { replace: true });
+      return;
+    }
+
+  }, [navigate]);
 
   const baseTreatment = pricing ? Number(pricing.rate) : 0;
 
@@ -173,52 +193,35 @@ export default function DoctorDashboard() {
   };
 
   return (
-    <div style={{
-      maxWidth: 1100,
-      margin: '32px auto',
-      padding: '24px 20px 36px',
-      fontFamily: 'Segoe UI, Arial, sans-serif',
-      color: '#1f2937',
-      background: '#f7f9fc',
-    }}>
-      <header style={{ marginBottom: 28, paddingBottom: 18, borderBottom: '1px solid #dfe7f1' }}>
-        <p style={{ margin: 0, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#4b5563' }}>
-          Hospital Pricing
-        </p>
-        <h1 style={{ margin: '8px 0 4px', fontSize: '2.1rem', color: '#0f172a' }}>Hospital Costing</h1>
-        <p style={{ margin: 0, color: '#475569', fontSize: '1.05rem' }}>Treatment Cost Calculator</p>
-      </header>
+    <>
+      <AppHeader role="Doctor" doctor={selectedDoctor} onLogout={handleDoctorLogout} />
+      <main className="app-page">
+        <div className="app-page__inner">
+          <div className="page-intro">
+            <p className="eyebrow">Treatment costing</p>
+            <h1 className="page-title">Treatment Cost Calculator</h1>
+          </div>
 
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 24 }}>
-        <section style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 14, padding: 20 }}>
-          <h2 style={{ margin: '0 0 18px', fontSize: '1rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#374151' }}>
-            Patient / Treatment Details
-          </h2>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 18 }}>
-            <label style={{ display: 'grid', gap: 8 }}>
-              <span style={{ fontWeight: 600 }}>Limb Type</span>
+          <form onSubmit={handleSubmit}>
+            <section className="panel">
+              <h2 className="section-label">Treatment Details</h2>
+              <div className="form-grid">
+                <label className="field">
+                  <span>Limb Type</span>
               <select
                 name="limbType"
                 value={formData.limbType}
                 onChange={handleInputChange}
                 aria-label="Limb Type"
-                style={{
-                  padding: '11px 12px',
-                  borderRadius: 10,
-                  border: '1px solid #cbd5e1',
-                  background: '#fff',
-                  fontSize: 15,
-                }}
               >
                 <option value="UNILATERAL">Unilateral</option>
                 <option value="BILATERAL">Bilateral</option>
               </select>
-            </label>
+                </label>
 
-            <label style={{ display: 'grid', gap: 8 }}>
-              <span style={{ fontWeight: 600 }}>Limb Volume</span>
-              <div style={{ position: 'relative' }}>
+                <label className="field">
+                  <span>Limb Volume <small>(Litres)</small></span>
+                  <div className="volume-field">
                 <input
                   name="volume"
                   type="number"
@@ -229,89 +232,53 @@ export default function DoctorDashboard() {
                   placeholder="Enter volume"
                   aria-invalid={Boolean(volumeError)}
                   aria-describedby={volumeError ? 'volume-error' : undefined}
-                  style={{
-                    width: '100%',
-                    padding: '11px 90px 11px 12px',
-                    borderRadius: 10,
-                    border: volumeError ? '1px solid #dc2626' : '1px solid #cbd5e1',
-                    background: '#fff',
-                    fontSize: 15,
-                    boxSizing: 'border-box',
-                  }}
                 />
-                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748b', fontWeight: 600 }}>
-                  Litres (L)
-                </span>
-              </div>
+  
+                  </div>
               {volumeError && (
-                <small id="volume-error" style={{ color: '#b91c1c', fontWeight: 600 }}>
+                <small id="volume-error" className="inline-error">
                   {volumeError}
                 </small>
               )}
-            </label>
+                </label>
 
-            <label style={{ display: 'grid', gap: 8 }}>
-              <span style={{ fontWeight: 600 }}>Treatment Duration</span>
+                <label className="field">
+                  <span>Treatment Duration</span>
               <select
                 name="duration"
                 value={String(formData.duration)}
                 onChange={handleInputChange}
                 aria-label="Treatment Duration"
-                style={{
-                  padding: '11px 12px',
-                  borderRadius: 10,
-                  border: '1px solid #cbd5e1',
-                  background: '#fff',
-                  fontSize: 15,
-                }}
               >
                 <option value="7">7 days</option>
                 <option value="10">10 days</option>
                 <option value="14">14 days</option>
                 <option value="21">21 days</option>
               </select>
-            </label>
+                </label>
 
-            <label style={{ display: 'grid', gap: 8 }}>
-              <span style={{ fontWeight: 600 }}>Financial Category</span>
+                <label className="field">
+                  <span>Financial Category</span>
               <select
                 name="financialCategory"
                 value={String(formData.financialCategory)}
                 onChange={handleInputChange}
                 aria-label="Financial Category"
-                style={{
-                  padding: '11px 12px',
-                  borderRadius: 10,
-                  border: '1px solid #cbd5e1',
-                  background: '#fff',
-                  fontSize: 15,
-                }}
               >
                 <option value="1">Category 1</option>
                 <option value="2">Category 2</option>
                 <option value="3">Category 3</option>
                 <option value="4">Category 4</option>
               </select>
-            </label>
-          </div>
-        </section>
+                </label>
+              </div>
+            </section>
 
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div className="actions calculator-actions">
           <button
             type="submit"
             disabled={loading}
-            style={{
-              padding: '13px 24px',
-              borderRadius: 10,
-              border: 'none',
-              background: '#0f766e',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: 15,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1,
-              minWidth: 180,
-            }}
+            className="primary-button"
           >
             {loading ? 'Calculating...' : 'Calculate Cost'}
           </button>
@@ -319,66 +286,55 @@ export default function DoctorDashboard() {
           <button
             type="button"
             onClick={resetCalculator}
-            style={{
-              padding: '13px 18px',
-              borderRadius: 10,
-              border: '1px solid #cbd5e1',
-              background: '#fff',
-              color: '#334155',
-              fontWeight: 600,
-              fontSize: 15,
-              cursor: 'pointer',
-            }}
+            className="secondary-button"
           >
             New Calculation
           </button>
-        </div>
-      </form>
+            </div>
+          </form>
 
       {error && (
-        <div style={{ marginTop: 20, background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 14px', fontWeight: 600 }}>
+        <div className="alert">
           {error}
         </div>
       )}
 
       {pricing && (
-        <section style={{ marginTop: 26, background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 14, padding: 20 }}>
-          <h2 style={{ margin: '0 0 18px', fontSize: '1rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#374151' }}>
+        <section className="panel cost-summary">
+          <h2 className="section-label">
             Cost Summary
           </h2>
 
-          <div style={{ display: 'grid', gap: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid #eef2f7' }}>
-              <span style={{ color: '#475569' }}>Base Treatment</span>
-              <strong style={{ fontSize: 17 }}>{formatCurrency(baseTreatment)}</strong>
+          <div>
+            <div className="cost-line">
+              <span>Base Treatment</span>
+              <strong>{formatCurrency(baseTreatment)}</strong>
             </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid #eef2f7' }}>
-              <span style={{ color: '#475569' }}>Additional Services</span>
-              <strong style={{ fontSize: 17 }}>{formatCurrency(additionalServicesTotal)}</strong>
+            <div className="cost-line">
+              <span>Additional Services</span>
+              <strong>{formatCurrency(additionalServicesTotal)}</strong>
             </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4 }}>
-              <span style={{ color: '#111827', fontSize: 17, fontWeight: 700 }}>Total Estimated Cost</span>
-              <strong style={{ fontSize: 22, color: '#0f172a' }}>{formatCurrency(totalEstimatedCost)}</strong>
+            <div className="cost-line">
+              <span><strong>Total Estimated Cost</strong></span>
+              <strong className="cost-total">{formatCurrency(totalEstimatedCost)}</strong>
             </div>
           </div>
         </section>
       )}
 
       {servicesLoading && (
-        <div style={{ marginTop: 20, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '12px 14px', fontWeight: 600 }}>
+        <div className="notice">
           Loading services...
         </div>
       )}
 
       {!servicesLoading && services.length > 0 && (
-        <section style={{ marginTop: 26, background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 14, padding: 20 }}>
-          <h2 style={{ margin: '0 0 18px', fontSize: '1rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#374151' }}>
+        <section className="panel">
+          <h2 className="section-label">
             Additional Services
           </h2>
 
-          <div style={{ display: 'grid', gap: 12 }}>
+          <div className="service-list">
             {services.map((service) => {
               const isSelected = !!selectedServices[Number(service.id)];
               const serviceCost = Number(service.cost_per_day) * Number(formData.duration);
@@ -386,18 +342,9 @@ export default function DoctorDashboard() {
               return (
                 <label
                   key={service.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 16,
-                    padding: '12px 14px',
-                    border: isSelected ? '1px solid #94a3b8' : '1px solid #e2e8f0',
-                    borderRadius: 10,
-                    background: isSelected ? '#f8fafc' : '#fff',
-                  }}
+                  className={`service-row${isSelected ? ' is-selected' : ''}`}
                 >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span className="service-row__main">
                     <input
                       type="checkbox"
                       checked={isSelected}
@@ -405,12 +352,12 @@ export default function DoctorDashboard() {
                       aria-label={service.service_name}
                     />
                     <span>
-                      <div style={{ fontWeight: 600 }}>{service.service_name}</div>
-                      <small style={{ color: '#475569' }}>{formatCurrency(service.cost_per_day)} per day</small>
+                      <div className="service-name">{service.service_name}</div>
+                      <small className="service-cost">{formatCurrency(service.cost_per_day)} per day</small>
                     </span>
                   </span>
 
-                  <strong style={{ color: '#0f172a' }}>{formatCurrency(serviceCost)}</strong>
+                  <strong>{formatCurrency(serviceCost)}</strong>
                 </label>
               );
             })}
@@ -419,10 +366,12 @@ export default function DoctorDashboard() {
       )}
 
       {!servicesLoading && services.length === 0 && pricing && (
-        <div style={{ marginTop: 20, background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: 10, padding: '12px 14px', color: '#475569' }}>
+        <div className="empty-state">
           No additional services are available at the moment.
         </div>
       )}
-    </div>
+        </div>
+      </main>
+    </>
   );
 }

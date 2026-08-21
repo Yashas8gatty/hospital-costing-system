@@ -1,7 +1,7 @@
 import { api } from './api';
 
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DEACTIVATE' | 'ACTIVATE';
-export type AuditEntityType = 'PRICING' | 'SERVICE';
+export type AuditEntityType = 'PRICING' | 'SERVICE' | 'DOCTOR';
 
 export interface AuditLogRecord {
   id: string;
@@ -16,7 +16,7 @@ export interface AuditLogRecord {
 }
 
 export interface AuditLogFilters {
-  entityType?: string;
+  entityType?: AuditEntityType;
   action?: string;
   adminId?: string;
 }

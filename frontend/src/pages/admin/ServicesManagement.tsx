@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { createService, getAdminServices, updateService } from '../../services/adminServiceService';
 import type { AdditionalService } from '../../types/pricing';
+import AppHeader from '../../components/layout/AppHeader';
 
 const formatCurrency = (value: number | string): string => {
   const numericValue = Number(value);
@@ -265,7 +266,9 @@ function ServicesManagement() {
   };
 
   return (
-    <div
+    <>
+      <AppHeader role="Admin" />
+      <div className="legacy-admin-page app-page"
       style={{
         minHeight: '100vh',
         background: '#f7f9fc',
@@ -797,7 +800,8 @@ function ServicesManagement() {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
