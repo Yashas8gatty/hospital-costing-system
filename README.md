@@ -508,7 +508,7 @@ The JWT is created in `authController.ts` with `jwt.sign(..., { expiresIn: '1h' 
 
 ## Database Schema
 
-The repository does not include a migration or DDL file. The schema below is inferred from the runtime queries in `controllers/*` and the importer in `import_excel.py`.
+The runtime PostgreSQL schema is initialized by `backend/src/config/database.ts` and extended by the SQL migrations in `backend/database/migrations/`. The current application tables are `pricing_rates`, `additional_services`, `users`, `doctors`, `audit_logs`, and `calculation_records`.
 
 ### Database name
 
@@ -593,6 +593,8 @@ Recorded SQL migrations are under `backend/database/migrations/`:
 
 - `002_create_calculation_records.sql`
 - `003_add_audit_record_context.sql`
+- `004_add_users_and_calculation_signatory.sql`
+- `005_add_limb_volumes_and_girth_measurements.sql`
 
 The current server also performs idempotent startup checks for required tables and columns.
 
@@ -645,20 +647,84 @@ Likely unique constraint used by importer:
 (service_name)
 ```
 
-#### `admins`
+#### `users`
 
 | Column | Type | Constraints | Description |
 | --- | --- | --- | --- |
-| `id` | integer / serial-like identifier | primary key implied by query results | admin record identifier |
-| `username` | text / varchar-like | lookup key | login username |
-| `password_hash` | text / varchar-like | hashed password for comparison | bcrypt hash |
+| `id` | `SERIAL` | primary key | User identifier |
+| `name` | `VARCHAR(160)` | not null | Display name |
+| `username` | `VARCHAR(80)` | not null, unique | Login username |
+| `password_hash` | `TEXT` | not null | bcrypt password hash |
+| `designation` | `VARCHAR(160)` | not null | User designation |
+| `role` | `VARCHAR(16)` | not null, `ADMIN` or `USER` | Authorization role |
+| `active` | `BOOLEAN` | not null, default `TRUE` | Account status |
+| `created_at` | `TIMESTAMP` | not null | Creation timestamp |
+| `updated_at` | `TIMESTAMP` | not null | Last update timestamp |
 
-The admin table is queried as:
+The legacy `admins` table is only used as an optional migration source during startup. Active authentication queries `users`.
 
-```sql
-SELECT id, username, password_hash
-FROM admins
-WHERE username = $1
+#### `doctors`
+
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| `id` | `SERIAL` | primary key | Doctor identifier |
+| `name` | `VARCHAR(160)` | not null | Doctor name |
+| `designation` | `VARCHAR(160)` | not null | Doctor designation |
+| `active` | `BOOLEAN` | not null, default `TRUE` | Availability status |
+| `created_at` | `TIMESTAMP` | not null | Creation timestamp |
+| `updated_at` | `TIMESTAMP` | not null | Last update timestamp |
+
+#### `audit_logs`
+
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| `id` | `SERIAL` | primary key | Audit entry identifier |
+| `admin_id` | `INTEGER` | not null, references `users(id)` | Acting user |
+| `action` | `VARCHAR(32)` | not null | Recorded action |
+| `entity_type` | `VARCHAR(32)` | not null | Affected entity type |
+| `entity_id` | `INTEGER` | not null | Affected record identifier |
+| `old_value` | `JSONB` | nullable | Previous snapshot |
+| `new_value` | `JSONB` | nullable | New snapshot |
+| `record_context` | `JSONB` | nullable | Historical identifying context |
+| `created_at` | `TIMESTAMPTZ` | not null | Audit timestamp |
+
+#### `calculation_records`
+
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| `id` | `BIGSERIAL` | primary key | Calculation identifier |
+| `doctor_id` | `BIGINT` | not null, references `doctors(id)` | Treating doctor |
+| `doctor_name`, `doctor_designation` | `TEXT` | nullable | Historical doctor snapshot |
+| `signatory_user_id` | `INTEGER` | references `users(id)` | Signing user |
+| `signatory_name`, `signatory_designation` | `TEXT` | nullable | Historical signatory snapshot |
+| `patient_name` | `TEXT` | not null | Patient name |
+| `patient_age` | `INTEGER` | 0 to 150 | Patient age |
+| `limb_type` | `TEXT` | not null | `UNILATERAL` or `BILATERAL` |
+| `volume` | `NUMERIC` | not null | Derived billing volume used by pricing/reports |
+| `left_volume`, `right_volume` | `NUMERIC` | nullable for legacy rows | Entered limb volumes in litres |
+| `girth_measurements` | `JSONB` | nullable for legacy rows | Structured left/right measurements in cm |
+| `duration_days`, `financial_category` | `INTEGER` | not null | Treatment inputs |
+| `base_rate` | `NUMERIC(12,2)` | not null | Saved pricing snapshot |
+| `services` | `JSONB` | not null, default `[]` | Service snapshots |
+| `additional_services_total`, `total_cost` | `NUMERIC(12,2)` | not null | Saved totals |
+| `status` | `TEXT` | `DRAFT` or `FINAL` | Calculation status |
+| `created_at`, `updated_at` | `TIMESTAMP` | not null | Record timestamps |
+
+New calculations store both limb volumes, the derived billing volume in `volume`, and girth data in `girth_measurements`. Existing rows may have the additive columns set to `NULL`.
+
+The girth JSONB shape is:
+
+```json
+{
+  "maximum_bulk_calf_standing": { "left": 42.5, "right": 40.0 },
+  "mid_thigh": { "left": 50.0, "right": 48.5 },
+  "patellar_region": { "left": 38.0, "right": 37.0 },
+  "maximum_bulk": { "left": 44.0, "right": 42.0 },
+  "end_of_calf_muscle_bulk": { "left": 36.0, "right": 35.0 },
+  "ankle": { "left": 24.0, "right": 23.5 },
+  "midfoot": { "left": 22.0, "right": 21.5 },
+  "metatarsal": { "left": 23.0, "right": 22.5 }
+}
 ```
 
 ### `NUMRANGE` semantics

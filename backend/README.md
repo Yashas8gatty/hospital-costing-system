@@ -103,6 +103,55 @@ export const pool = new Pool({
 
 Runtime connection logging is attached through `pool.on()` handlers.
 
+## Current PostgreSQL Tables
+
+The runtime schema is initialized by `src/config/database.ts`. SQL history is recorded in `database/migrations/`. The current application tables are `pricing_rates`, `additional_services`, `users`, `doctors`, `audit_logs`, and `calculation_records`.
+
+### `pricing_rates`
+
+Stores imported base pricing. Columns are `id`, `limb_type`, `duration_days`, `volume_range NUMRANGE`, `financial_category`, and `rate`. The importer upserts on `(limb_type, duration_days, volume_range, financial_category)`.
+
+### `additional_services`
+
+Stores optional services with `id`, `service_name` (unique), `cost_per_day`, and `active`.
+
+### `users`
+
+Stores authenticated users: `id`, `name`, `username` (unique), `password_hash`, `designation`, `role` (`ADMIN` or `USER`), `active`, `created_at`, and `updated_at`.
+
+### `doctors`
+
+Stores doctor profiles: `id`, `name`, `designation`, `active`, `created_at`, and `updated_at`. Calculations reference `doctors(id)`.
+
+### `audit_logs`
+
+Stores administration history: `id`, `admin_id` referencing `users(id)`, `action`, `entity_type`, `entity_id`, `old_value JSONB`, `new_value JSONB`, `record_context JSONB`, and `created_at`.
+
+### `calculation_records`
+
+Stores self-contained calculation history:
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `id` | `BIGSERIAL` | Calculation identifier |
+| `doctor_id` | `BIGINT` | Foreign key to `doctors` |
+| `doctor_name`, `doctor_designation` | `TEXT` | Historical doctor snapshot |
+| `signatory_user_id` | `INTEGER` | Foreign key to `users` |
+| `signatory_name`, `signatory_designation` | `TEXT` | Historical signatory snapshot |
+| `patient_name`, `patient_age` | `TEXT`, `INTEGER` | Patient details; age is 0 to 150 |
+| `limb_type` | `TEXT` | `UNILATERAL` or `BILATERAL` |
+| `volume` | `NUMERIC` | Derived billing volume used by pricing and reports |
+| `left_volume`, `right_volume` | `NUMERIC` | Entered limb volumes in litres |
+| `girth_measurements` | `JSONB` | Required left/right girth data in centimetres |
+| `duration_days`, `financial_category` | `INTEGER` | Treatment inputs |
+| `base_rate` | `NUMERIC(12,2)` | Saved base-rate snapshot |
+| `services` | `JSONB` | Additional-service snapshots |
+| `additional_services_total`, `total_cost` | `NUMERIC(12,2)` | Saved totals |
+| `status` | `TEXT` | `DRAFT` or `FINAL` |
+| `created_at`, `updated_at` | `TIMESTAMP` | Record timestamps |
+
+`left_volume`, `right_volume`, and `girth_measurements` are nullable for backward compatibility with historical rows. New rows contain all three. The legacy `admins` table, when present, is only a startup migration source for `users`.
+
 ## Routes
 
 ### Public routes
@@ -465,7 +514,8 @@ CREATE TABLE doctors (
   name VARCHAR(160) NOT NULL,
   designation VARCHAR(160) NOT NULL,
   active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
@@ -488,7 +538,7 @@ Pricing:
 
 Services store `{ "service_name": "ULCER CARE" }`. The context is written inside the existing pricing/service transactions and returned by `GET /api/admin/audit-logs`.
 
-The migration is recorded at `database/migrations/003_add_audit_record_context.sql`. Existing audit rows may contain `NULL` context.
+The migrations are recorded at `database/migrations/003_add_audit_record_context.sql`, `database/migrations/004_add_users_and_calculation_signatory.sql`, and `database/migrations/005_add_limb_volumes_and_girth_measurements.sql`. Existing audit rows may contain `NULL` context.
 
 ## Current Build Checks
 
