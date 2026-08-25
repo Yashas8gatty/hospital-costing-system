@@ -12,19 +12,40 @@ import type {
   TreatmentDuration,
 } from '../../types/pricing';
 import AppHeader from '../../components/layout/AppHeader';
-import { clearSelectedDoctor, getSelectedDoctor } from '../../services/doctorService';
-import { createCalculation } from '../../services/calculationService';
+import { getDoctors } from '../../services/doctorService';
+import type { Doctor } from '../../types/doctor';
+import { clearAdminSession, getStoredAdminToken } from '../../services/authService';
+import { createCalculation, type GirthMeasurements } from '../../services/calculationService';
+
+const GIRTH_FIELDS: Array<{ key: keyof GirthMeasurements; label: string }> = [
+  { key: 'maximum_bulk_calf_standing', label: 'Maximum bulk of calf (in standing)' },
+  { key: 'mid_thigh', label: 'Mid-thigh' },
+  { key: 'patellar_region', label: 'Patellar region' },
+  { key: 'maximum_bulk', label: 'Maximum bulk' },
+  { key: 'end_of_calf_muscle_bulk', label: 'End of calf muscle bulk' },
+  { key: 'ankle', label: 'Ankle' },
+  { key: 'midfoot', label: 'Midfoot' },
+  { key: 'metatarsal', label: 'Metatarsal' },
+];
+
+const initialGirthMeasurements = (): Record<keyof GirthMeasurements, { left: string; right: string }> =>
+  GIRTH_FIELDS.reduce((measurements, field) => ({
+    ...measurements,
+    [field.key]: { left: '', right: '' },
+  }), {} as Record<keyof GirthMeasurements, { left: string; right: string }>);
 
 type FormState = {
   limbType: LimbType;
-  volume: string;
+  leftVolume: string;
+  rightVolume: string;
   duration: TreatmentDuration;
   financialCategory: FinancialCategory;
 };
 
 const initialForm: FormState = {
   limbType: 'UNILATERAL',
-  volume: '',
+  leftVolume: '',
+  rightVolume: '',
   duration: 7,
   financialCategory: 1,
 };
@@ -38,8 +59,10 @@ const formatCurrency = (value: number | string) =>
 
 export default function DoctorDashboard() {
   const navigate = useNavigate();
-  const selectedDoctor = getSelectedDoctor();
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [formData, setFormData] = useState<FormState>(initialForm);
+  const [girthMeasurements, setGirthMeasurements] = useState(initialGirthMeasurements);
   const [pricing, setPricing] = useState<PricingRate | null>(null);
   const [services, setServices] = useState<AdditionalService[]>([]);
   const [selectedServices, setSelectedServices] = useState<Record<number, boolean>>({});
@@ -47,6 +70,7 @@ export default function DoctorDashboard() {
   const [servicesLoading, setServicesLoading] = useState(false);
   const [error, setError] = useState('');
   const [volumeError, setVolumeError] = useState('');
+  const [girthError, setGirthError] = useState('');
   const [patientName, setPatientName] = useState('');
   const [patientAge, setPatientAge] = useState('');
   const [patientError, setPatientError] = useState('');
@@ -54,18 +78,16 @@ export default function DoctorDashboard() {
   const [saving, setSaving] = useState(false);
 
   const handleDoctorLogout = () => {
-    clearSelectedDoctor();
-    navigate('/doctor/login', { replace: true });
+    clearAdminSession();
+    navigate('/', { replace: true });
   };
 
   useEffect(() => {
-    const doctor = getSelectedDoctor();
-
-    if (!doctor) {
-      navigate('/doctor/login', { replace: true });
+    if (!getStoredAdminToken()) {
+      navigate('/', { replace: true });
       return;
     }
-
+    void getDoctors().then((response) => setDoctors(response.data)).catch(() => setSaveError('Unable to load doctors.'));
   }, [navigate]);
 
   const baseTreatment = pricing ? Number(pricing.rate) : 0;
@@ -83,6 +105,12 @@ export default function DoctorDashboard() {
 
   const totalEstimatedCost = baseTreatment + additionalServicesTotal;
 
+  const parsedLeftVolume = Number(formData.leftVolume);
+  const parsedRightVolume = Number(formData.rightVolume);
+  const billingVolume = formData.limbType === 'UNILATERAL'
+    ? Math.max(parsedLeftVolume, parsedRightVolume)
+    : parsedLeftVolume + parsedRightVolume;
+
   const resetCalculator = () => {
     setFormData(initialForm);
     setPatientName('');
@@ -94,6 +122,8 @@ export default function DoctorDashboard() {
     setSelectedServices({});
     setError('');
     setVolumeError('');
+    setGirthError('');
+    setGirthMeasurements(initialGirthMeasurements());
     setLoading(false);
     setServicesLoading(false);
   };
@@ -117,6 +147,24 @@ export default function DoctorDashboard() {
       return;
     }
 
+    const hasInvalidGirth = GIRTH_FIELDS.some(({ key }) => {
+      const measurement = girthMeasurements[key];
+      return !measurement.left || !measurement.right || Number(measurement.left) <= 0 || Number(measurement.right) <= 0 || !Number.isFinite(Number(measurement.left)) || !Number.isFinite(Number(measurement.right));
+    });
+    if (hasInvalidGirth) {
+      setGirthError('All girth measurements must be valid numbers greater than 0.');
+      setSaveError('Complete all girth measurements before saving.');
+      return;
+    }
+
+    const parsedGirthMeasurements = GIRTH_FIELDS.reduce((measurements, field) => ({
+      ...measurements,
+      [field.key]: {
+        left: Number(girthMeasurements[field.key].left),
+        right: Number(girthMeasurements[field.key].right),
+      },
+    }), {} as GirthMeasurements);
+
     const selectedServiceSnapshots = services
       .filter((service) => selectedServices[Number(service.id)])
       .map((service) => ({
@@ -137,7 +185,10 @@ export default function DoctorDashboard() {
         patient_name: trimmedPatientName,
         patient_age: parsedPatientAge,
         limb_type: formData.limbType,
-        volume: Number(formData.volume),
+        left_volume: parsedLeftVolume,
+        right_volume: parsedRightVolume,
+        volume: billingVolume,
+        girth_measurements: parsedGirthMeasurements,
         duration_days: formData.duration,
         financial_category: formData.financialCategory,
         base_rate: baseTreatment,
@@ -160,8 +211,10 @@ export default function DoctorDashboard() {
   ) => {
     const { name, value } = event.target;
 
-    if (name === 'volume') {
+    if (name === 'leftVolume' || name === 'rightVolume' || name === 'limbType') {
       setVolumeError('');
+      setPricing(null);
+      setServices([]);
     }
 
     setFormData((current) => ({
@@ -171,6 +224,14 @@ export default function DoctorDashboard() {
         : name === 'limbType'
           ? value as LimbType
           : value,
+    }));
+  };
+
+  const handleGirthChange = (site: keyof GirthMeasurements, side: 'left' | 'right', value: string) => {
+    setGirthError('');
+    setGirthMeasurements((current) => ({
+      ...current,
+      [site]: { ...current[site], [side]: value },
     }));
   };
 
@@ -186,19 +247,27 @@ export default function DoctorDashboard() {
     setError('');
     setVolumeError('');
 
-    const volume = Number(formData.volume);
+    const leftVolume = Number(formData.leftVolume);
+    const rightVolume = Number(formData.rightVolume);
+    const hasInvalidGirth = GIRTH_FIELDS.some(({ key }) => {
+      const measurement = girthMeasurements[key];
+      return !measurement.left || !measurement.right || Number(measurement.left) <= 0 || Number(measurement.right) <= 0 || !Number.isFinite(Number(measurement.left)) || !Number.isFinite(Number(measurement.right));
+    });
 
-    if (!formData.limbType || !formData.volume || !formData.duration || !formData.financialCategory) {
+    if (!formData.limbType || !formData.leftVolume || !formData.rightVolume || !formData.duration || !formData.financialCategory || hasInvalidGirth) {
       setError('Please complete all required fields before calculating the cost.');
-      if (!formData.volume) {
-        setVolumeError('Limb volume is required.');
+      if (!formData.leftVolume || !formData.rightVolume || !Number.isFinite(leftVolume) || leftVolume <= 0 || !Number.isFinite(rightVolume) || rightVolume <= 0) {
+        setVolumeError('Both limb volumes must be valid numbers greater than 0.');
+      }
+      if (hasInvalidGirth) {
+        setGirthError('All girth measurements must be valid numbers greater than 0.');
       }
       return;
     }
 
-    if (Number.isNaN(volume) || volume <= 0) {
-      setVolumeError('Volume must be a valid number greater than 0.');
-      setError('Volume must be a valid number greater than 0.');
+    if (!Number.isFinite(leftVolume) || leftVolume <= 0 || !Number.isFinite(rightVolume) || rightVolume <= 0) {
+      setVolumeError('Both limb volumes must be valid numbers greater than 0.');
+      setError('Both limb volumes must be valid numbers greater than 0.');
       return;
     }
 
@@ -207,7 +276,7 @@ export default function DoctorDashboard() {
     try {
       const pricingResponse = await getPricing(
         formData.limbType,
-        formData.volume,
+        String(billingVolume),
         formData.duration,
         formData.financialCategory
       );
@@ -261,7 +330,7 @@ export default function DoctorDashboard() {
 
   return (
     <>
-      <AppHeader role="Doctor" doctor={selectedDoctor} onLogout={handleDoctorLogout} />
+      <AppHeader role="User" onLogout={handleDoctorLogout} />
       <main className="app-page">
         <div className="app-page__inner">
           <div className="page-intro">
@@ -301,6 +370,13 @@ export default function DoctorDashboard() {
               <h2 className="section-label">Treatment Details</h2>
               <div className="form-grid">
                 <label className="field">
+                  <span>Doctor</span>
+                  <select value={selectedDoctor?.id ?? ''} onChange={(event) => setSelectedDoctor(doctors.find((doctor) => doctor.id === Number(event.target.value)) ?? null)} required>
+                    <option value="">Select doctor</option>
+                    {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name} - {doctor.designation}</option>)}
+                  </select>
+                </label>
+                <label className="field">
                   <span>Limb Type</span>
               <select
                 name="limbType"
@@ -313,28 +389,14 @@ export default function DoctorDashboard() {
               </select>
                 </label>
 
-                <label className="field">
-                  <span>Limb Volume <small>(Litres)</small></span>
-                  <div className="volume-field">
-                <input
-                  name="volume"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={formData.volume}
-                  onChange={handleInputChange}
-                  placeholder="Enter volume"
-                  aria-invalid={Boolean(volumeError)}
-                  aria-describedby={volumeError ? 'volume-error' : undefined}
-                />
-  
+                <div className="field">
+                  <span>Volume of the Limb <small>(Litres)</small></span>
+                  <div className="volume-pair">
+                    <label className="field"><span>Left</span><input name="leftVolume" type="number" min="0" step="0.1" value={formData.leftVolume} onChange={handleInputChange} placeholder="Enter volume" aria-invalid={Boolean(volumeError)} required /></label>
+                    <label className="field"><span>Right</span><input name="rightVolume" type="number" min="0" step="0.1" value={formData.rightVolume} onChange={handleInputChange} placeholder="Enter volume" aria-invalid={Boolean(volumeError)} required /></label>
                   </div>
-              {volumeError && (
-                <small id="volume-error" className="inline-error">
-                  {volumeError}
-                </small>
-              )}
-                </label>
+                  {volumeError && <small id="volume-error" className="inline-error">{volumeError}</small>}
+                </div>
 
                 <label className="field">
                   <span>Treatment Duration</span>
@@ -366,6 +428,24 @@ export default function DoctorDashboard() {
               </select>
                 </label>
               </div>
+              <div className="billing-volume" aria-live="polite">
+                <span>Billing Volume</span>
+                <strong>{Number.isFinite(billingVolume) && billingVolume > 0 ? `${billingVolume} Litres` : 'Enter both limb volumes'}</strong>
+                <small>Volume used for billing</small>
+              </div>
+            </section>
+
+            <section className="panel">
+              <h2 className="section-label">Girth Measurements</h2>
+              <div className="girth-table">
+                <div className="girth-row girth-row--header"><span>Site of the limb</span><span>Left (cm)</span><span>Right (cm)</span></div>
+                {GIRTH_FIELDS.map(({ key, label }) => <div className="girth-row" key={key}>
+                  <span>{label}</span>
+                  <input type="number" min="0" step="0.1" value={girthMeasurements[key].left} onChange={(event) => handleGirthChange(key, 'left', event.target.value)} placeholder="cm" aria-label={`${label} left`} required />
+                  <input type="number" min="0" step="0.1" value={girthMeasurements[key].right} onChange={(event) => handleGirthChange(key, 'right', event.target.value)} placeholder="cm" aria-label={`${label} right`} required />
+                </div>)}
+              </div>
+              {girthError && <small className="inline-error">{girthError}</small>}
             </section>
 
             <div className="actions calculator-actions">

@@ -3,11 +3,11 @@ import {
   getAllPricing,
   updatePricingRate,
 } from "../controllers/adminPricingController";
-import { authMiddleware } from "../middleware/authMiddleware";
+import { authMiddleware, requireAdmin } from "../middleware/authMiddleware";
 
 const router = Router();
 
-router.use(authMiddleware);
+router.use(authMiddleware, requireAdmin);
 router.get("/", getAllPricing);
 router.put("/:id", updatePricingRate);
 

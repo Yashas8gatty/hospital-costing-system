@@ -1,15 +1,18 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 
-export interface AuthenticatedAdmin {
+export interface AuthenticatedUser {
+  userId: number;
   adminId: number;
   username: string;
+  role: "ADMIN" | "USER";
   iat?: number;
   exp?: number;
 }
 
 export interface AuthenticatedRequest extends Request {
-  admin?: AuthenticatedAdmin;
+  user?: AuthenticatedUser;
+  admin?: AuthenticatedUser;
 }
 
 export const authMiddleware = (
@@ -43,14 +46,17 @@ export const authMiddleware = (
       });
     }
 
-    const decoded = jwt.verify(token, secret) as AuthenticatedAdmin;
+    const decoded = jwt.verify(token, secret) as AuthenticatedUser;
 
-    req.admin = {
-      adminId: decoded.adminId,
+    req.user = {
+      userId: decoded.userId,
+      adminId: decoded.userId,
       username: decoded.username,
+      role: decoded.role,
       iat: decoded.iat,
       exp: decoded.exp,
     };
+    req.admin = req.user;
 
     return next();
   } catch (error) {
@@ -59,4 +65,16 @@ export const authMiddleware = (
       message: "Invalid or expired token",
     });
   }
+};
+
+export const requireAdmin = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  if (req.user?.role !== "ADMIN") {
+    return res.status(403).json({ message: "Administrator access required" });
+  }
+
+  return next();
 };

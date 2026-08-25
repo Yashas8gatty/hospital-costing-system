@@ -1,16 +1,15 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import type { Doctor } from '../../types/doctor';
-import { logout } from '../../services/authService';
+import { getStoredAdmin, logout } from '../../services/authService';
 
 type AppHeaderProps = {
-  role: 'Doctor' | 'Admin';
+  role: 'User' | 'Admin';
   onLogout?: () => void;
-  doctor?: Doctor | null;
 };
 
-export default function AppHeader({ role, onLogout, doctor }: AppHeaderProps) {
+export default function AppHeader({ role, onLogout }: AppHeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const currentUser = role === 'User' ? getStoredAdmin() : null;
   const handleLogout = onLogout ?? (role === 'Admin' ? () => logout(navigate) : undefined);
 
   return (
@@ -21,7 +20,12 @@ export default function AppHeader({ role, onLogout, doctor }: AppHeaderProps) {
             <img src="/images/iad-logo.png" alt="Institute of Applied Dermatology" />
           </Link>
           <div className="app-header__tools">
-            {role === 'Doctor' && doctor && <span className="doctor-identity"><strong>{doctor.name}</strong><small>{doctor.designation}</small></span>}
+            {role === 'User' && currentUser && (
+              <span className="doctor-identity">
+                <strong>{currentUser.name}</strong>
+                <small>{currentUser.designation}</small>
+              </span>
+            )}
             <span className="role-label"><span className="role-dot" />{role}</span>
             {handleLogout ? (
               <button className="text-button" type="button" onClick={handleLogout}>
@@ -31,7 +35,7 @@ export default function AppHeader({ role, onLogout, doctor }: AppHeaderProps) {
           </div>
         </div>
       </header>
-      {role === 'Admin' ? <AdminNavigation /> : <nav className="app-nav" aria-label="Doctor navigation"><div className="app-nav__inner"><Link className={`app-nav__link${location.pathname === '/doctor' ? ' app-nav__link--active' : ''}`} to="/doctor">Doctor Dashboard</Link></div></nav>}
+      {role === 'Admin' ? <AdminNavigation /> : <nav className="app-nav" aria-label="Calculator navigation"><div className="app-nav__inner"><Link className={`app-nav__link${location.pathname === '/doctor' ? ' app-nav__link--active' : ''}`} to="/doctor">Calculator</Link></div></nav>}
     </>
   );
 }
@@ -42,6 +46,7 @@ function AdminNavigation() {
     ['/admin', 'Dashboard'],
     ['/admin/pricing', 'Pricing Management'],
     ['/admin/services', 'Additional Services'],
+    ['/admin/users', 'Users'],
     ['/admin/doctors', 'Doctors'],
     ['/admin/audit-logs', 'Audit Logs'],
   ];

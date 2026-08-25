@@ -2,38 +2,41 @@ import axios from 'axios';
 
 import { api } from './api';
 
-export type AdminUser = {
+export type AppUser = {
   id: string;
+  name: string;
   username: string;
+  designation: string;
+  role: 'ADMIN' | 'USER';
 };
 
 export type LoginResponse = {
   token: string;
-  admin: AdminUser;
+  user: AppUser;
 };
 
-export const getStoredAdmin = (): AdminUser | null => {
-  const storedAdmin = localStorage.getItem('admin');
+export const getStoredAdmin = (): AppUser | null => {
+  const storedAdmin = localStorage.getItem('user');
 
   if (!storedAdmin) {
     return null;
   }
 
   try {
-    return JSON.parse(storedAdmin) as AdminUser;
+    return JSON.parse(storedAdmin) as AppUser;
   } catch {
-    localStorage.removeItem('admin');
+    localStorage.removeItem('user');
     return null;
   }
 };
 
 export const getStoredAdminToken = (): string | null => {
-  return localStorage.getItem('adminToken');
+  return localStorage.getItem('authToken');
 };
 
 export const clearAdminSession = (): void => {
-  localStorage.removeItem('adminToken');
-  localStorage.removeItem('admin');
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('user');
 };
 
 export const login = async (
@@ -52,7 +55,7 @@ export const logout = (
   navigate: (path: string, options?: { replace?: boolean }) => void,
 ): void => {
   clearAdminSession();
-  navigate('/admin/login', { replace: true });
+  navigate('/', { replace: true });
 };
 
 export const isAxiosUnauthorizedError = (error: unknown): boolean => {

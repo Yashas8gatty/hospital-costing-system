@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../config/database";
 import { generateCalculationPdf } from "../services/pdfService";
+import type { AuthenticatedRequest } from "../middleware/authMiddleware";
 
 type ServiceSnapshot = {
   service_id: number;
@@ -10,8 +11,46 @@ type ServiceSnapshot = {
   total_cost: number;
 };
 
+type GirthMeasurement = {
+  left: number;
+  right: number;
+};
+
+type GirthMeasurements = Record<string, GirthMeasurement>;
+
+const GIRTH_SITES = [
+  "maximum_bulk_calf_standing",
+  "mid_thigh",
+  "patellar_region",
+  "maximum_bulk",
+  "end_of_calf_muscle_bulk",
+  "ankle",
+  "midfoot",
+  "metatarsal",
+] as const;
+
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
+
+const isGirthMeasurements = (value: unknown): value is GirthMeasurements => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const measurements = value as Record<string, unknown>;
+  return GIRTH_SITES.every((site) => {
+    const measurement = measurements[site];
+    if (!measurement || typeof measurement !== "object") {
+      return false;
+    }
+
+    const values = measurement as Record<string, unknown>;
+    return (
+      isFiniteNumber(values.left) && values.left > 0 &&
+      isFiniteNumber(values.right) && values.right > 0
+    );
+  });
+};
 
 const isServiceSnapshot = (value: unknown): value is ServiceSnapshot => {
   if (!value || typeof value !== "object") {
@@ -34,14 +73,21 @@ const isServiceSnapshot = (value: unknown): value is ServiceSnapshot => {
   );
 };
 
-export const createCalculation = async (req: Request, res: Response) => {
+export const createCalculation = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const signatoryUserId = req.user?.userId;
+    if (!signatoryUserId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
     const {
       doctor_id: doctorId,
       patient_name: patientName,
       patient_age: patientAge,
       limb_type: limbType,
       volume,
+      left_volume: leftVolume,
+      right_volume: rightVolume,
+      girth_measurements: girthMeasurements,
       duration_days: durationDays,
       financial_category: financialCategory,
       base_rate: baseRate,
@@ -68,6 +114,21 @@ export const createCalculation = async (req: Request, res: Response) => {
 
     if (!isFiniteNumber(volume) || volume <= 0) {
       return res.status(400).json({ message: "volume must be greater than 0" });
+    }
+
+    if (!isFiniteNumber(leftVolume) || leftVolume <= 0 || !isFiniteNumber(rightVolume) || rightVolume <= 0) {
+      return res.status(400).json({ message: "left_volume and right_volume must be greater than 0" });
+    }
+
+    const expectedBillingVolume = limbType === "UNILATERAL"
+      ? Math.max(leftVolume, rightVolume)
+      : leftVolume + rightVolume;
+    if (Math.abs(volume - expectedBillingVolume) >= 0.000001) {
+      return res.status(400).json({ message: "volume must match the derived billing volume" });
+    }
+
+    if (!isGirthMeasurements(girthMeasurements)) {
+      return res.status(400).json({ message: "girth_measurements must contain all required measurements" });
     }
 
     if (!Number.isInteger(durationDays) || durationDays <= 0) {
@@ -109,7 +170,7 @@ export const createCalculation = async (req: Request, res: Response) => {
     }
 
     const doctorResult = await pool.query(
-      `SELECT id FROM doctors WHERE id = $1 AND active = TRUE`,
+      `SELECT id, name, designation FROM doctors WHERE id = $1 AND active = TRUE`,
       [doctorId]
     );
 
@@ -117,22 +178,41 @@ export const createCalculation = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Active doctor not found" });
     }
 
+    const signatoryResult = await pool.query(
+      `SELECT id, name, designation FROM users WHERE id = $1 AND active = TRUE`,
+      [signatoryUserId],
+    );
+    if (signatoryResult.rows.length === 0) {
+      return res.status(401).json({ message: "Authenticated user is inactive" });
+    }
+    const signatory = signatoryResult.rows[0];
+    const doctor = doctorResult.rows[0];
+
     const result = await pool.query(
       `
       INSERT INTO calculation_records (
-        doctor_id, patient_name, patient_age, limb_type, volume,
+        doctor_id, doctor_name, doctor_designation, signatory_user_id, signatory_name, signatory_designation,
+        patient_name, patient_age, limb_type, volume, left_volume, right_volume, girth_measurements,
         duration_days, financial_category, base_rate, services,
         additional_services_total, total_cost, status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, 'DRAFT')
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb, $18, $19, 'DRAFT')
       RETURNING id, status
       `,
       [
         doctorId,
+        doctor.name,
+        doctor.designation,
+        signatory.id,
+        signatory.name,
+        signatory.designation,
         patientName.trim(),
         patientAge,
         limbType,
         volume,
+        leftVolume,
+        rightVolume,
+        JSON.stringify(girthMeasurements),
         durationDays,
         financialCategory,
         baseRate,
@@ -160,17 +240,24 @@ export const getCalculation = async (req: Request, res: Response) => {
     const result = await pool.query(
       `
       SELECT
-        cr.id, cr.doctor_id, cr.patient_name, cr.patient_age,
-        cr.limb_type, cr.volume, cr.duration_days, cr.financial_category,
+        cr.id, cr.doctor_id, cr.signatory_user_id, cr.signatory_name, cr.signatory_designation, cr.patient_name, cr.patient_age,
+        cr.limb_type, cr.volume, cr.left_volume, cr.right_volume, cr.girth_measurements,
+        cr.duration_days, cr.financial_category,
         cr.base_rate, cr.services, cr.additional_services_total,
         cr.total_cost, cr.status, cr.created_at, cr.updated_at,
         json_build_object(
           'id', d.id,
-          'name', d.name,
-          'designation', d.designation
-        ) AS doctor
+          'name', COALESCE(cr.doctor_name, d.name),
+          'designation', COALESCE(cr.doctor_designation, d.designation)
+        ) AS doctor,
+        json_build_object(
+          'id', u.id,
+          'name', COALESCE(cr.signatory_name, u.name, 'Signatory unavailable'),
+          'designation', COALESCE(cr.signatory_designation, u.designation, '')
+        ) AS signatory
       FROM calculation_records cr
       INNER JOIN doctors d ON d.id = cr.doctor_id
+      LEFT JOIN users u ON u.id = cr.signatory_user_id
       WHERE cr.id = $1
       `,
       [calculationId]
@@ -247,9 +334,15 @@ export const getCalculationPdf = async (req: Request, res: Response) => {
         cr.id, cr.patient_name, cr.patient_age, cr.limb_type, cr.volume,
         cr.duration_days, cr.financial_category, cr.base_rate, cr.services,
         cr.total_cost, cr.status, cr.created_at,
-        json_build_object('id', d.id, 'name', d.name, 'designation', d.designation) AS doctor
+        json_build_object('id', d.id, 'name', COALESCE(cr.doctor_name, d.name), 'designation', COALESCE(cr.doctor_designation, d.designation)) AS doctor
+        , json_build_object(
+          'id', u.id,
+          'name', COALESCE(cr.signatory_name, u.name, 'Signatory unavailable'),
+          'designation', COALESCE(cr.signatory_designation, u.designation, '')
+        ) AS signatory
       FROM calculation_records cr
       INNER JOIN doctors d ON d.id = cr.doctor_id
+      LEFT JOIN users u ON u.id = cr.signatory_user_id
       WHERE cr.id = $1
       `,
       [calculationId]

@@ -281,7 +281,7 @@ export default function CalculationReportPlaceholder() {
               </div>
 
               <div>
-                <span>Volume</span>
+                <span>Billing Volume</span>
                 <strong>
                   {calculation.volume} Litres
                 </strong>
@@ -388,9 +388,9 @@ export default function CalculationReportPlaceholder() {
 
     <span>Signature</span>
 
-    <strong>{calculation.doctor.name}</strong>
+    <strong>{calculation.signatory.name}</strong>
 
-    <span>{calculation.doctor.designation}</span>
+    <span>{calculation.signatory.designation}</span>
   </div>
 </footer> 
         </div>

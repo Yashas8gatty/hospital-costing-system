@@ -11,16 +11,12 @@ export default function LoginSelection() {
         </div>
         <div className="page-intro">
           <p className="eyebrow">Hospital costing</p>
-          <h1 className="page-title">Hospital Costing</h1>
+          <h1 className="page-title">Login</h1>
         </div>
         <div className="role-selection" aria-label="Choose application role">
-          <button className="role-card" type="button" onClick={() => navigate('/doctor/login')}>
-            <strong>Doctor</strong>
-            <span>Continue as Doctor</span>
-          </button>
           <button className="role-card" type="button" onClick={() => navigate('/admin/login')}>
-            <strong>Admin</strong>
-            <span>Continue as Administrator</span>
+            <strong>Application User</strong>
+            <span>Sign in with your username and password</span>
           </button>
         </div>
       </div>

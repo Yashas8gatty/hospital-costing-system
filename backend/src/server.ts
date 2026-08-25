@@ -10,7 +10,8 @@ import authRoutes from "./routes/authRoutes";
 import auditRoutes from "./routes/auditRoutes";
 import doctorRoutes, { adminDoctorRouter } from "./routes/doctorRoutes";
 import calculationRoutes from "./routes/calculationRoutes";
-import { ensureAuditTable, ensureCalculationRecordsTable, ensureDoctorsTable } from "./config/database";
+import userRoutes from "./routes/userRoutes";
+import { ensureAuditTable, ensureCalculationRecordsTable, ensureDoctorsTable, ensureUsersTable } from "./config/database";
 
 dotenv.config();
 
@@ -34,12 +35,14 @@ app.use("/api/admin/services", adminServiceRoutes);
 app.use("/api/admin/audit-logs", auditRoutes);
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/admin/doctors", adminDoctorRouter);
+app.use("/api/admin/users", userRoutes);
 app.use("/api/calculations", calculationRoutes);
 
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
+    await ensureUsersTable();
     await ensureAuditTable();
     await ensureDoctorsTable();
     await ensureCalculationRecordsTable();

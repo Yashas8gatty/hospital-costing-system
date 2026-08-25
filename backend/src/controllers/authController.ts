@@ -13,23 +13,23 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    const adminResult = await pool.query(
+    const userResult = await pool.query(
       `
-      SELECT id, username, password_hash
-      FROM admins
-      WHERE username = $1
+      SELECT id, name, username, designation, password_hash, role
+      FROM users
+      WHERE username = $1 AND active = TRUE
       `,
       [username]
     );
 
-    if (adminResult.rows.length === 0) {
+    if (userResult.rows.length === 0) {
       return res.status(401).json({
         message: "Invalid username or password",
       });
     }
 
-    const admin = adminResult.rows[0];
-    const isPasswordValid = await bcrypt.compare(password, admin.password_hash);
+    const user = userResult.rows[0];
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
 
     if (!isPasswordValid) {
       return res.status(401).json({
@@ -48,8 +48,9 @@ export const login = async (req: Request, res: Response) => {
 
     const token = jwt.sign(
       {
-        adminId: admin.id,
-        username: admin.username,
+        userId: user.id,
+        username: user.username,
+        role: user.role,
       },
       secret,
       { expiresIn: "1h" }
@@ -57,9 +58,12 @@ export const login = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       token,
-      admin: {
-        id: admin.id,
-        username: admin.username,
+      user: {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        designation: user.designation,
+        role: user.role,
       },
     });
   } catch (error) {

@@ -8,12 +8,36 @@ export type CalculationServiceSnapshot = {
   total_cost: number;
 };
 
+export type LimbVolumes = {
+  left: number;
+  right: number;
+};
+
+export type GirthMeasurement = {
+  left: number;
+  right: number;
+};
+
+export type GirthMeasurements = {
+  maximum_bulk_calf_standing: GirthMeasurement;
+  mid_thigh: GirthMeasurement;
+  patellar_region: GirthMeasurement;
+  maximum_bulk: GirthMeasurement;
+  end_of_calf_muscle_bulk: GirthMeasurement;
+  ankle: GirthMeasurement;
+  midfoot: GirthMeasurement;
+  metatarsal: GirthMeasurement;
+};
+
 export type CreateCalculationPayload = {
   doctor_id: number;
   patient_name: string;
   patient_age: number;
   limb_type: 'UNILATERAL' | 'BILATERAL';
+  left_volume: number;
+  right_volume: number;
   volume: number;
+  girth_measurements: GirthMeasurements;
   duration_days: number;
   financial_category: number;
   base_rate: number;
@@ -46,6 +70,9 @@ export type CalculationReport = {
   patient_age: number;
   limb_type: 'UNILATERAL' | 'BILATERAL';
   volume: string;
+  left_volume?: string | null;
+  right_volume?: string | null;
+  girth_measurements?: GirthMeasurements | null;
   duration_days: number;
   financial_category: number;
   base_rate: string;
@@ -56,6 +83,7 @@ export type CalculationReport = {
   created_at: string;
   updated_at: string;
   doctor: ReportDoctor;
+  signatory: ReportDoctor;
 };
 
 type CalculationResponse = {

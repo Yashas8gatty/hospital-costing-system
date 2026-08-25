@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const publicApiPaths = new Set(['/pricing', '/services', '/health', '/auth/login', '/doctors', '/calculations']);
+const publicApiPaths = new Set(['/pricing', '/services', '/health', '/auth/login', '/doctors']);
 
 const getNormalizedUrl = (url: string | undefined): string => {
   if (!url) {
@@ -22,7 +22,7 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('adminToken');
+  const token = localStorage.getItem('authToken');
   const requestUrl = getNormalizedUrl(config.url);
 
   if (token && requestUrl && !publicApiPaths.has(requestUrl)) {
@@ -46,11 +46,11 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('admin');
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
 
     if (typeof window !== 'undefined') {
-      window.location.replace('/admin/login');
+      window.location.replace('/');
     }
 
     return Promise.reject(error);

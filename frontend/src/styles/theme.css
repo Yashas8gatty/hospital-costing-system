@@ -58,6 +58,15 @@ a { color: inherit; text-decoration: none; }
 .field small, .helper { color: var(--iad-muted); font-size: 0.78rem; }
 .volume-field { display: grid; gap: 6px; }
 .volume-field .helper { display: block; }
+.volume-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.billing-volume { display: grid; grid-template-columns: auto auto 1fr; align-items: baseline; gap: 12px; margin-top: 24px; border-top: 1px solid var(--iad-border); padding-top: 16px; color: var(--iad-muted); }
+.billing-volume strong { color: var(--iad-teal); font-size: 1.05rem; }
+.billing-volume small { color: var(--iad-muted); }
+.girth-table { border-top: 1px solid var(--iad-border); }
+.girth-row { display: grid; grid-template-columns: minmax(220px, 1.6fr) repeat(2, minmax(120px, 1fr)); align-items: center; gap: 16px; border-bottom: 1px solid var(--iad-border); padding: 12px 0; }
+.girth-row--header { color: var(--iad-muted); font-size: 0.8rem; font-weight: 700; }
+.girth-row input { width: 100%; min-height: 40px; border: 1px solid var(--iad-border); border-radius: 5px; padding: 8px 10px; }
+.girth-row input:focus { border-color: var(--iad-teal); outline: none; box-shadow: 0 0 0 3px rgba(0, 138, 145, 0.12); }
 .actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .calculator-actions { margin-top: 16px; }
 .primary-button, .secondary-button, .quiet-button, .danger-button { min-height: 40px; border-radius: 5px; padding: 9px 16px; font-weight: 700; }
@@ -208,4 +217,4 @@ tbody tr:hover { background: #fbfdfd; }
 @media (max-width: 620px) { .legacy-admin-page { padding: 30px 16px 52px !important; } .legacy-admin-page > div > div { padding: 20px !important; } }
 
 @media (max-width: 900px) { .form-grid, .admin-grid, .doctor-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 620px) { :root { --iad-content-gutter: 16px; } .app-header__inner, .app-nav__inner { width: min(var(--iad-content-width), calc(100% - (var(--iad-content-gutter) * 2))); } .app-header__inner { min-height: 92px; } .brand img { width: 150px; height: 68px; } .app-header__tools { gap: 12px; } .app-page { padding: 30px var(--iad-content-gutter) 52px; } .panel { padding: 20px; } .form-grid, .admin-grid, .filter-grid, .doctor-list { grid-template-columns: 1fr; } .pagination { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 620px) { :root { --iad-content-gutter: 16px; } .app-header__inner, .app-nav__inner { width: min(var(--iad-content-width), calc(100% - (var(--iad-content-gutter) * 2))); } .app-header__inner { min-height: 92px; } .brand img { width: 150px; height: 68px; } .app-header__tools { gap: 12px; } .app-page { padding: 30px var(--iad-content-gutter) 52px; } .panel { padding: 20px; } .form-grid, .admin-grid, .filter-grid, .doctor-list { grid-template-columns: 1fr; } .volume-pair, .billing-volume { grid-template-columns: 1fr; } .girth-row { grid-template-columns: minmax(130px, 1.4fr) repeat(2, minmax(80px, 1fr)); gap: 8px; font-size: 0.85rem; } .pagination { align-items: flex-start; flex-direction: column; } }

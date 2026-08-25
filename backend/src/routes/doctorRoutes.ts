@@ -5,14 +5,14 @@ import {
 	getDoctors,
 	updateDoctor,
 } from "../controllers/doctorController";
-import { authMiddleware } from "../middleware/authMiddleware";
+import { authMiddleware, requireAdmin } from "../middleware/authMiddleware";
 
 const router = Router();
 export const adminDoctorRouter = Router();
 
 router.get("/", getDoctors);
 
-adminDoctorRouter.use(authMiddleware);
+adminDoctorRouter.use(authMiddleware, requireAdmin);
 adminDoctorRouter.get("/", getAllDoctors);
 adminDoctorRouter.post("/", createDoctor);
 adminDoctorRouter.put("/:id", updateDoctor);

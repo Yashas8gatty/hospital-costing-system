@@ -6,7 +6,7 @@ dotenv.config();
 const AUDIT_LOG_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS audit_logs (
     id SERIAL PRIMARY KEY,
-    admin_id INTEGER NOT NULL REFERENCES admins(id),
+    admin_id INTEGER NOT NULL REFERENCES users(id),
     action VARCHAR(32) NOT NULL,
     entity_type VARCHAR(32) NOT NULL,
     entity_id INTEGER NOT NULL,
@@ -22,13 +22,28 @@ const AUDIT_LOG_TABLE_SQL = `
     ON audit_logs (entity_type, action, admin_id, created_at DESC);
 `;
 
+const USERS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(160) NOT NULL,
+    username VARCHAR(80) NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    designation VARCHAR(160) NOT NULL,
+    role VARCHAR(16) NOT NULL DEFAULT 'USER' CHECK (role IN ('ADMIN', 'USER')),
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+`;
+
 const DOCTORS_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS doctors (
     id SERIAL PRIMARY KEY,
     name VARCHAR(160) NOT NULL,
     designation VARCHAR(160) NOT NULL,
     active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 `;
 
@@ -36,6 +51,11 @@ const CALCULATION_RECORDS_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS calculation_records (
     id BIGSERIAL PRIMARY KEY,
     doctor_id BIGINT NOT NULL REFERENCES doctors(id),
+    doctor_name TEXT,
+    doctor_designation TEXT,
+    signatory_user_id INTEGER REFERENCES users(id),
+    signatory_name TEXT,
+    signatory_designation TEXT,
     patient_name TEXT NOT NULL,
     patient_age INTEGER NOT NULL CHECK (patient_age BETWEEN 0 AND 150),
     limb_type TEXT NOT NULL,
@@ -65,9 +85,28 @@ export const pool = new Pool({
 
 export const ensureAuditTable = async (): Promise<void> => {
   await pool.query(AUDIT_LOG_TABLE_SQL);
+  await pool.query(`ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_admin_id_fkey`);
+  await pool.query(`ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES users(id)`);
   await pool.query(
     `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS record_context JSONB`
   );
+};
+
+export const ensureUsersTable = async (): Promise<void> => {
+  await pool.query(USERS_TABLE_SQL);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.admins') IS NOT NULL THEN
+        INSERT INTO users (id, name, username, password_hash, designation, role)
+         SELECT a.id, a.username, a.username, a.password_hash,
+           'Administrator', 'ADMIN'
+        FROM admins a
+        WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.username = a.username);
+      END IF;
+    END $$;
+  `);
+  await pool.query(`SELECT setval(pg_get_serial_sequence('users', 'id'), COALESCE((SELECT MAX(id) FROM users), 1))`);
 };
 
 export const ensureDoctorsTable = async (): Promise<void> => {
@@ -112,6 +151,15 @@ export const ensureDoctorsTable = async (): Promise<void> => {
 
 export const ensureCalculationRecordsTable = async (): Promise<void> => {
   await pool.query(CALCULATION_RECORDS_TABLE_SQL);
+  await pool.query(`ALTER TABLE calculation_records ADD COLUMN IF NOT EXISTS doctor_name TEXT`);
+  await pool.query(`ALTER TABLE calculation_records ADD COLUMN IF NOT EXISTS doctor_designation TEXT`);
+  await pool.query(`ALTER TABLE calculation_records ADD COLUMN IF NOT EXISTS signatory_user_id INTEGER REFERENCES users(id)`);
+  await pool.query(`ALTER TABLE calculation_records ADD COLUMN IF NOT EXISTS signatory_name TEXT`);
+  await pool.query(`ALTER TABLE calculation_records ADD COLUMN IF NOT EXISTS signatory_designation TEXT`);
+  await pool.query(`ALTER TABLE calculation_records ADD COLUMN IF NOT EXISTS left_volume NUMERIC`);
+  await pool.query(`ALTER TABLE calculation_records ADD COLUMN IF NOT EXISTS right_volume NUMERIC`);
+  await pool.query(`ALTER TABLE calculation_records ADD COLUMN IF NOT EXISTS girth_measurements JSONB`);
+  await pool.query(`ALTER TABLE doctors ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
 };
 
 pool.on("connect", () => {

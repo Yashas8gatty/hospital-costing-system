@@ -4,11 +4,11 @@ import {
   getAllServices,
   updateService,
 } from "../controllers/adminServiceController";
-import { authMiddleware } from "../middleware/authMiddleware";
+import { authMiddleware, requireAdmin } from "../middleware/authMiddleware";
 
 const router = Router();
 
-router.use(authMiddleware);
+router.use(authMiddleware, requireAdmin);
 router.get("/", getAllServices);
 router.post("/", createService);
 router.put("/:id", updateService);

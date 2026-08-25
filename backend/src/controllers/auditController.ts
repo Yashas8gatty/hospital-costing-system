@@ -49,7 +49,7 @@ export const getAuditLogs = async (
           al.new_value,
           al.created_at
         FROM audit_logs al
-        INNER JOIN admins a ON a.id = al.admin_id
+        INNER JOIN users a ON a.id = al.admin_id
         ${whereClause}
         ORDER BY al.created_at DESC
       `,

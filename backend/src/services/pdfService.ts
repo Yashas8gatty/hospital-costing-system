@@ -24,6 +24,10 @@ type CalculationForPdf = {
     name: string;
     designation: string;
   };
+  signatory: {
+    name: string;
+    designation: string;
+  };
 };
 
 const escapeHtml = (value: string): string => value
@@ -145,7 +149,7 @@ body { color: #1f2933; font-family: Arial, sans-serif; font-size: 10px; }
     </section>
     <footer class="report-footer">
       <div class="report-footer-meta"><div>Report ID: <strong>#${calculation.id.padStart(6, "0")}</strong></div></div>
-      <div class="signature-block"><div class="signature-line"></div><span>Signature</span><strong>${escapeHtml(calculation.doctor.name)}</strong><span>${escapeHtml(calculation.doctor.designation)}</span></div>
+      <div class="signature-block"><div class="signature-line"></div><span>Signature</span><strong>${escapeHtml(calculation.signatory.name)}</strong><span>${escapeHtml(calculation.signatory.designation)}</span></div>
     </footer>
   </div>
 </article>

@@ -43,10 +43,10 @@ function AdminLogin() {
     try {
       const response = await login(username, password);
 
-      localStorage.setItem('adminToken', response.token);
-      localStorage.setItem('admin', JSON.stringify(response.admin));
+      localStorage.setItem('authToken', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
 
-      navigate('/admin', { replace: true });
+      navigate(response.user.role === 'ADMIN' ? '/admin' : '/doctor', { replace: true });
     } catch (loginError) {
       const message =
         loginError instanceof Error && loginError.message
@@ -67,8 +67,8 @@ function AdminLogin() {
         </div>
         <div className="page-intro">
           <p className="eyebrow">Hospital costing</p>
-          <h1 className="page-title">Admin Login</h1>
-          <p className="page-subtitle">Sign in to manage configuration and audit history.</p>
+          <h1 className="page-title">Login</h1>
+          <p className="page-subtitle">Sign in to continue to hospital costing.</p>
         </div>
 
         <form onSubmit={handleSubmit}>

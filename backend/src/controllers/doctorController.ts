@@ -16,8 +16,8 @@ export const getDoctors = async (_req: Request, res: Response) => {
 
     return res.status(200).json({ data: result.rows });
   } catch (error) {
-    console.error("Doctor profile lookup error:", error);
-    return res.status(500).json({ message: "Unable to load doctor profiles" });
+    console.error("Doctor directory lookup error:", error);
+    return res.status(500).json({ message: "Unable to load doctors" });
   }
 };
 
@@ -182,7 +182,7 @@ export const updateDoctor = async (req: AuthenticatedRequest, res: Response) => 
     const result = await client.query(
       `
       UPDATE doctors
-      SET name = $1, designation = $2, active = $3
+      SET name = $1, designation = $2, active = $3, updated_at = CURRENT_TIMESTAMP
       WHERE id = $4
       RETURNING id, name, designation, active
       `,
