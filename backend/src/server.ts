@@ -11,6 +11,7 @@ import auditRoutes from "./routes/auditRoutes";
 import doctorRoutes, { adminDoctorRouter } from "./routes/doctorRoutes";
 import calculationRoutes from "./routes/calculationRoutes";
 import userRoutes from "./routes/userRoutes";
+import billingHistoryRoutes from "./routes/admin/billingHistoryRoutes";
 import { ensureAuditTable, ensureCalculationRecordsTable, ensureDoctorsTable, ensureUsersTable } from "./config/database";
 
 dotenv.config();
@@ -33,6 +34,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin/pricing", adminPricingRoutes);
 app.use("/api/admin/services", adminServiceRoutes);
 app.use("/api/admin/audit-logs", auditRoutes);
+app.use("/api/admin/billing-history", billingHistoryRoutes);
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/admin/doctors", adminDoctorRouter);
 app.use("/api/admin/users", userRoutes);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   getAdditionalServices,
   getPricing,
@@ -15,7 +15,7 @@ import AppHeader from '../../components/layout/AppHeader';
 import { getDoctors } from '../../services/doctorService';
 import type { Doctor } from '../../types/doctor';
 import { clearAdminSession, getStoredAdminToken } from '../../services/authService';
-import { createCalculation, type GirthMeasurements } from '../../services/calculationService';
+import { createCalculation, getCalculation, type GirthMeasurements } from '../../services/calculationService';
 
 const GIRTH_FIELDS: Array<{ key: keyof GirthMeasurements; label: string }> = [
   { key: 'maximum_bulk_calf_standing', label: 'Maximum bulk of calf (in standing)' },
@@ -73,14 +73,21 @@ export default function DoctorDashboard() {
   const [girthError, setGirthError] = useState('');
   const [patientName, setPatientName] = useState('');
   const [patientAge, setPatientAge] = useState('');
+  const [patientGender, setPatientGender] = useState<'Male' | 'Female' | 'Other' | ''>('');
   const [patientError, setPatientError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [serviceDays, setServiceDays] = useState<Record<number, string>>({});
+  const [isForbidden, setIsForbidden] = useState(false);
 
   const handleDoctorLogout = () => {
     clearAdminSession();
     navigate('/', { replace: true });
   };
+
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const editId = searchParams.get('edit');
 
   useEffect(() => {
     if (!getStoredAdminToken()) {
@@ -89,6 +96,90 @@ export default function DoctorDashboard() {
     }
     void getDoctors().then((response) => setDoctors(response.data)).catch(() => setSaveError('Unable to load doctors.'));
   }, [navigate]);
+
+  useEffect(() => {
+    if (!editId || doctors.length === 0) {
+      return;
+    }
+
+    const loadCalculationToEdit = async () => {
+      try {
+        const calculation = await getCalculation(editId);
+
+        // Only load if status is DRAFT (just in case)
+        if (calculation.status !== 'DRAFT') {
+          return;
+        }
+
+        setPatientName(calculation.patient_name);
+        setPatientAge(String(calculation.patient_age));
+
+        const genderVal = calculation.patient_gender === 'MALE' ? 'Male' : calculation.patient_gender === 'FEMALE' ? 'Female' : calculation.patient_gender === 'OTHER' ? 'Other' : '';
+        setPatientGender(genderVal);
+
+        // Find doctor from loaded doctors list
+        const docId = Number(calculation.doctor_id);
+        const doc = doctors.find((d) => d.id === docId);
+        if (doc) {
+          setSelectedDoctor(doc);
+        }
+
+        setFormData({
+          limbType: calculation.limb_type,
+          leftVolume: calculation.left_volume ? String(calculation.left_volume) : '',
+          rightVolume: calculation.right_volume ? String(calculation.right_volume) : '',
+          duration: calculation.duration_days as TreatmentDuration,
+          financialCategory: calculation.financial_category as FinancialCategory,
+        });
+
+        if (calculation.girth_measurements) {
+          const loadedGirth = {} as Record<keyof GirthMeasurements, { left: string; right: string }>;
+          GIRTH_FIELDS.forEach(({ key }) => {
+            const val = calculation.girth_measurements?.[key];
+            loadedGirth[key] = {
+              left: val ? String(val.left) : '',
+              right: val ? String(val.right) : '',
+            };
+          });
+          setGirthMeasurements(loadedGirth);
+        }
+
+        const mockPricing: PricingRate = {
+          id: 'snapshot',
+          limb_type: calculation.limb_type,
+          duration_days: calculation.duration_days as TreatmentDuration,
+          volume_range: '',
+          financial_category: calculation.financial_category as FinancialCategory,
+          rate: calculation.base_rate,
+        };
+        setPricing(mockPricing);
+
+        // Load all available services and mark selected ones
+        const servicesResponse = await getAdditionalServices();
+        setServices(servicesResponse.data || []);
+
+        const nextSelectedServices: Record<number, boolean> = {};
+        const nextServiceDays: Record<number, string> = {};
+        calculation.services.forEach((service) => {
+          nextSelectedServices[service.service_id] = true;
+          nextServiceDays[service.service_id] = String(service.duration_days);
+        });
+        setSelectedServices(nextSelectedServices);
+        setServiceDays(nextServiceDays);
+
+      } catch (err) {
+        const errorWithResponse = err as { response?: { status?: number } };
+        console.error('Failed to load calculation for editing:', err);
+        if (errorWithResponse.response?.status === 403 || errorWithResponse.response?.status === 404 || errorWithResponse.response?.status === 401) {
+          setIsForbidden(true);
+        } else {
+          setSaveError('Unable to load the draft calculation details.');
+        }
+      }
+    };
+
+    void loadCalculationToEdit();
+  }, [editId, doctors]);
 
   const baseTreatment = pricing ? Number(pricing.rate) : 0;
 
@@ -99,9 +190,10 @@ export default function DoctorDashboard() {
         return total;
       }
 
-      return total + Number(service.cost_per_day) * Number(formData.duration);
+      const days = Number(serviceDays[serviceId] ?? formData.duration);
+      return total + Number(service.cost_per_day) * days;
     }, 0);
-  }, [formData.duration, selectedServices, services]);
+  }, [formData.duration, selectedServices, services, serviceDays]);
 
   const totalEstimatedCost = baseTreatment + additionalServicesTotal;
 
@@ -115,11 +207,14 @@ export default function DoctorDashboard() {
     setFormData(initialForm);
     setPatientName('');
     setPatientAge('');
+    setPatientGender('');
     setPatientError('');
     setSaveError('');
     setPricing(null);
     setServices([]);
     setSelectedServices({});
+    setServiceDays({});
+    setIsForbidden(false);
     setError('');
     setVolumeError('');
     setGirthError('');
@@ -139,6 +234,11 @@ export default function DoctorDashboard() {
 
     if (!patientAge.trim() || !Number.isInteger(parsedPatientAge) || parsedPatientAge < 0 || parsedPatientAge > 150) {
       setPatientError('Patient age must be a whole number between 0 and 150.');
+      return;
+    }
+
+    if (!patientGender) {
+      setPatientError('Gender is required.');
       return;
     }
 
@@ -165,15 +265,34 @@ export default function DoctorDashboard() {
       },
     }), {} as GirthMeasurements);
 
+    let daysError = '';
+    services.forEach((service) => {
+      const serviceId = Number(service.id);
+      if (selectedServices[serviceId]) {
+        const days = Number(serviceDays[serviceId] ?? formData.duration);
+        if (!Number.isInteger(days) || days <= 0) {
+          daysError = `Duration for service "${service.service_name}" must be a positive whole number.`;
+        }
+      }
+    });
+
+    if (daysError) {
+      setSaveError(daysError);
+      return;
+    }
+
     const selectedServiceSnapshots = services
       .filter((service) => selectedServices[Number(service.id)])
-      .map((service) => ({
-        service_id: Number(service.id),
-        service_name: service.service_name,
-        cost_per_day: Number(service.cost_per_day),
-        duration_days: Number(formData.duration),
-        total_cost: Number(service.cost_per_day) * Number(formData.duration),
-      }));
+      .map((service) => {
+        const days = Number(serviceDays[Number(service.id)] ?? formData.duration);
+        return {
+          service_id: Number(service.id),
+          service_name: service.service_name,
+          cost_per_day: Number(service.cost_per_day),
+          duration_days: days,
+          total_cost: Number(service.cost_per_day) * days,
+        };
+      });
 
     setSaving(true);
     setPatientError('');
@@ -184,6 +303,7 @@ export default function DoctorDashboard() {
         doctor_id: selectedDoctor.id,
         patient_name: trimmedPatientName,
         patient_age: parsedPatientAge,
+        patient_gender: patientGender.toUpperCase() as 'MALE' | 'FEMALE' | 'OTHER',
         limb_type: formData.limbType,
         left_volume: parsedLeftVolume,
         right_volume: parsedRightVolume,
@@ -239,6 +359,13 @@ export default function DoctorDashboard() {
     setSelectedServices((current) => ({
       ...current,
       [serviceId]: !current[serviceId],
+    }));
+  };
+
+  const handleServiceDaysChange = (serviceId: number, value: string) => {
+    setServiceDays((current) => ({
+      ...current,
+      [serviceId]: value,
     }));
   };
 
@@ -328,6 +455,35 @@ export default function DoctorDashboard() {
     }
   };
 
+  if (isForbidden) {
+    return (
+      <>
+        <AppHeader role="User" onLogout={handleDoctorLogout} />
+        <main className="app-page">
+          <div className="app-page__inner" style={{ maxWidth: 600, margin: '80px auto', textAlign: 'center' }}>
+            <section className="panel" style={{ borderTop: '4px solid #c46b6b' }}>
+              <div style={{ fontSize: '3rem', color: '#c46b6b', marginBottom: 16 }}>⚠️</div>
+              <h1 className="page-title" style={{ fontSize: '2rem', color: '#8b3e3e', marginBottom: 12 }}>Access Denied</h1>
+              <p style={{ color: 'var(--iad-muted)', marginBottom: 24, fontSize: '1rem', lineHeight: '1.5' }}>
+                You do not have permission to view or edit this calculation record. Manual URL tampering is strictly prohibited.
+              </p>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => {
+                  setIsForbidden(false);
+                  navigate('/doctor', { replace: true });
+                }}
+              >
+                Go to Calculator
+              </button>
+            </section>
+          </div>
+        </main>
+      </>
+    );
+  }
+
   return (
     <>
       <AppHeader role="User" onLogout={handleDoctorLogout} />
@@ -335,7 +491,7 @@ export default function DoctorDashboard() {
         <div className="app-page__inner">
           <div className="page-intro">
             <p className="eyebrow">Treatment costing</p>
-            <h1 className="page-title">Treatment Cost Calculator</h1>
+
           </div>
 
           <form onSubmit={handleSubmit}>
@@ -363,12 +519,19 @@ export default function DoctorDashboard() {
                     placeholder="Enter age"
                   />
                 </label>
-              </div>
-              {patientError && <small className="inline-error">{patientError}</small>}
-            </section>
-            <section className="panel">
-              <h2 className="section-label">Treatment Details</h2>
-              <div className="form-grid">
+                <label className="field">
+                  <span>Gender</span>
+                  <select
+                    value={patientGender}
+                    onChange={(event) => { setPatientGender(event.target.value as 'Male' | 'Female' | 'Other' | ''); setPatientError(''); }}
+                    required
+                  >
+                    <option value="">Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
                 <label className="field">
                   <span>Doctor</span>
                   <select value={selectedDoctor?.id ?? ''} onChange={(event) => setSelectedDoctor(doctors.find((doctor) => doctor.id === Number(event.target.value)) ?? null)} required>
@@ -376,17 +539,23 @@ export default function DoctorDashboard() {
                     {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name} - {doctor.designation}</option>)}
                   </select>
                 </label>
+              </div>
+              {patientError && <small className="inline-error">{patientError}</small>}
+            </section>
+            <section className="panel">
+              <h2 className="section-label">Treatment Details</h2>
+              <div className="form-grid">
                 <label className="field">
                   <span>Limb Type</span>
-              <select
-                name="limbType"
-                value={formData.limbType}
-                onChange={handleInputChange}
-                aria-label="Limb Type"
-              >
-                <option value="UNILATERAL">Unilateral</option>
-                <option value="BILATERAL">Bilateral</option>
-              </select>
+                  <select
+                    name="limbType"
+                    value={formData.limbType}
+                    onChange={handleInputChange}
+                    aria-label="Limb Type"
+                  >
+                    <option value="UNILATERAL">Unilateral</option>
+                    <option value="BILATERAL">Bilateral</option>
+                  </select>
                 </label>
 
                 <div className="field">
@@ -400,32 +569,32 @@ export default function DoctorDashboard() {
 
                 <label className="field">
                   <span>Treatment Duration</span>
-              <select
-                name="duration"
-                value={String(formData.duration)}
-                onChange={handleInputChange}
-                aria-label="Treatment Duration"
-              >
-                <option value="7">7 days</option>
-                <option value="10">10 days</option>
-                <option value="14">14 days</option>
-                <option value="21">21 days</option>
-              </select>
+                  <select
+                    name="duration"
+                    value={String(formData.duration)}
+                    onChange={handleInputChange}
+                    aria-label="Treatment Duration"
+                  >
+                    <option value="7">7 days</option>
+                    <option value="10">10 days</option>
+                    <option value="14">14 days</option>
+                    <option value="21">21 days</option>
+                  </select>
                 </label>
 
                 <label className="field">
                   <span>Financial Category</span>
-              <select
-                name="financialCategory"
-                value={String(formData.financialCategory)}
-                onChange={handleInputChange}
-                aria-label="Financial Category"
-              >
-                <option value="1">Category 1</option>
-                <option value="2">Category 2</option>
-                <option value="3">Category 3</option>
-                <option value="4">Category 4</option>
-              </select>
+                  <select
+                    name="financialCategory"
+                    value={String(formData.financialCategory)}
+                    onChange={handleInputChange}
+                    aria-label="Financial Category"
+                  >
+                    <option value="1">Category 1</option>
+                    <option value="2">Category 2</option>
+                    <option value="3">Category 3</option>
+                    <option value="4">Category 4</option>
+                  </select>
                 </label>
               </div>
               <div className="billing-volume" aria-live="polite">
@@ -449,108 +618,132 @@ export default function DoctorDashboard() {
             </section>
 
             <div className="actions calculator-actions">
-          <button
-            type="submit"
-            disabled={loading}
-            className="primary-button"
-          >
-            {loading ? 'Calculating...' : 'Calculate Cost'}
-          </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="primary-button"
+              >
+                {loading ? 'Calculating...' : 'Calculate Cost'}
+              </button>
 
-          <button
-            type="button"
-            onClick={resetCalculator}
-            className="secondary-button"
-          >
-            New Calculation
-          </button>
+              <button
+                type="button"
+                onClick={resetCalculator}
+                className="secondary-button"
+              >
+                New Calculation
+              </button>
             </div>
           </form>
 
-      {error && (
-        <div className="alert">
-          {error}
-        </div>
-      )}
-
-      {saveError && <div className="alert">{saveError}</div>}
-
-      {pricing && (
-        <section className="panel cost-summary">
-          <h2 className="section-label">
-            Cost Summary
-          </h2>
-
-          <div>
-            <div className="cost-line">
-              <span>Base Treatment</span>
-              <strong>{formatCurrency(baseTreatment)}</strong>
+          {error && (
+            <div className="alert">
+              {error}
             </div>
-            <div className="cost-line">
-              <span>Additional Services</span>
-              <strong>{formatCurrency(additionalServicesTotal)}</strong>
+          )}
+
+          {saveError && <div className="alert">{saveError}</div>}
+
+          {pricing && (
+            <section className="panel cost-summary">
+              <h2 className="section-label">
+                Cost Summary
+              </h2>
+
+              <div>
+                <div className="cost-line">
+                  <span>Base Treatment</span>
+                  <strong>{formatCurrency(baseTreatment)}</strong>
+                </div>
+                <div className="cost-line">
+                  <span>Additional Services</span>
+                  <strong>{formatCurrency(additionalServicesTotal)}</strong>
+                </div>
+                <div className="cost-line">
+                  <span><strong>Total Estimated Cost</strong></span>
+                  <strong className="cost-total">{formatCurrency(totalEstimatedCost)}</strong>
+                </div>
+              </div>
+              <div className="actions calculator-actions">
+                <button className="primary-button" type="button" onClick={() => void handleSaveCalculation()} disabled={saving}>
+                  {saving ? 'Saving...' : 'Save Calculation'}
+                </button>
+              </div>
+            </section>
+          )}
+
+          {servicesLoading && (
+            <div className="notice">
+              Loading services...
             </div>
-            <div className="cost-line">
-              <span><strong>Total Estimated Cost</strong></span>
-              <strong className="cost-total">{formatCurrency(totalEstimatedCost)}</strong>
+          )}
+
+          {!servicesLoading && services.length > 0 && (
+            <section className="panel">
+              <h2 className="section-label">
+                Additional Services
+              </h2>
+
+              <div className="service-list">
+                {services.map((service) => {
+                  const isSelected = !!selectedServices[Number(service.id)];
+                  const days = Number(serviceDays[Number(service.id)] ?? formData.duration);
+                  const serviceCost = Number(service.cost_per_day) * days;
+
+                  return (
+                    <div
+                      key={service.id}
+                      className={`service-row${isSelected ? ' is-selected' : ''}`}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 16 }}
+                    >
+                      <label className="service-row__main" style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', flex: 1 }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleServiceToggle(Number(service.id))}
+                          aria-label={service.service_name}
+                        />
+                        <span>
+                          <div className="service-name">{service.service_name}</div>
+                          <small className="service-cost">{formatCurrency(service.cost_per_day)} per day</small>
+                        </span>
+                      </label>
+
+                      {isSelected && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 24 }}>
+                          <span style={{ fontSize: '0.85rem', color: 'var(--iad-text)' }}>Duration (days):</span>
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={serviceDays[Number(service.id)] ?? String(formData.duration)}
+                            onChange={(event) => handleServiceDaysChange(Number(service.id), event.target.value)}
+                            style={{
+                              width: 70,
+                              minHeight: 32,
+                              padding: '4px 8px',
+                              border: '1px solid var(--iad-border)',
+                              borderRadius: 4,
+                              fontSize: '0.9rem',
+                              textAlign: 'center',
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      <strong>{formatCurrency(serviceCost)}</strong>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {!servicesLoading && services.length === 0 && pricing && (
+            <div className="empty-state">
+              No additional services are available at the moment.
             </div>
-          </div>
-          <div className="actions calculator-actions">
-            <button className="primary-button" type="button" onClick={() => void handleSaveCalculation()} disabled={saving}>
-              {saving ? 'Saving...' : 'Save Calculation'}
-            </button>
-          </div>
-        </section>
-      )}
-
-      {servicesLoading && (
-        <div className="notice">
-          Loading services...
-        </div>
-      )}
-
-      {!servicesLoading && services.length > 0 && (
-        <section className="panel">
-          <h2 className="section-label">
-            Additional Services
-          </h2>
-
-          <div className="service-list">
-            {services.map((service) => {
-              const isSelected = !!selectedServices[Number(service.id)];
-              const serviceCost = Number(service.cost_per_day) * Number(formData.duration);
-
-              return (
-                <label
-                  key={service.id}
-                  className={`service-row${isSelected ? ' is-selected' : ''}`}
-                >
-                  <span className="service-row__main">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => handleServiceToggle(Number(service.id))}
-                      aria-label={service.service_name}
-                    />
-                    <span>
-                      <div className="service-name">{service.service_name}</div>
-                      <small className="service-cost">{formatCurrency(service.cost_per_day)} per day</small>
-                    </span>
-                  </span>
-
-                  <strong>{formatCurrency(serviceCost)}</strong>
-                </label>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {!servicesLoading && services.length === 0 && pricing && (
-        <div className="empty-state">
-          No additional services are available at the moment.
-        </div>
-      )}
+          )}
         </div>
       </main>
     </>

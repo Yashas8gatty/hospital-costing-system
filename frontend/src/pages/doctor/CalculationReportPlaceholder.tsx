@@ -7,8 +7,9 @@ import {
   getCalculation,
   type CalculationReport,
 } from '../../services/calculationService';
+import { getStoredAdmin } from '../../services/authService';
 
-export const LETTERHEAD_RESERVED_MM = 50;
+export const LETTERHEAD_RESERVED_MM = 60;
 
 const formatCurrency = (value: string | number): string =>
   new Intl.NumberFormat('en-IN', {
@@ -32,6 +33,8 @@ const formatLimbType = (
 export default function CalculationReportPlaceholder() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const user = getStoredAdmin();
+  const isAdmin = user?.role === 'ADMIN';
 
   const [calculation, setCalculation] =
     useState<CalculationReport | null>(null);
@@ -76,6 +79,28 @@ export default function CalculationReportPlaceholder() {
     void loadCalculation();
   }, [id]);
 
+  const downloadPdfFile = async (calcDbId: string, calcDisplayId: string) => {
+    setIsDownloading(true);
+    setPdfError('');
+
+    try {
+      const pdf = await getCalculationPdf(calcDbId);
+      const url = URL.createObjectURL(pdf);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `calculation-report-${calcDisplayId.padStart(6, '0')}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (downloadError) {
+      console.error('Calculation PDF download failed:', downloadError);
+      setPdfError('Unable to download the PDF. Please try again.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const handleFinalize = async () => {
     if (!calculation || !id || isFinalizing) {
       return;
@@ -93,38 +118,15 @@ export default function CalculationReportPlaceholder() {
         updated_at: finalized.updated_at ?? current.updated_at,
       } : current);
       setShowFinalizeConfirmation(false);
-      setSuccessMessage('Report finalized successfully.');
+      setSuccessMessage('Report finalized & Downloaded successfully.');
+
+      // Automatically trigger the PDF download on success
+      await downloadPdfFile(id, calculation.id);
     } catch (finalizeRequestError) {
       console.error('Calculation finalization failed:', finalizeRequestError);
       setFinalizeError('Unable to finalize this report. Please try again.');
     } finally {
       setIsFinalizing(false);
-    }
-  };
-
-  const handleDownloadPdf = async () => {
-    if (!calculation || !id || calculation.status !== 'FINAL' || isDownloading) {
-      return;
-    }
-
-    setIsDownloading(true);
-    setPdfError('');
-
-    try {
-      const pdf = await getCalculationPdf(id);
-      const url = URL.createObjectURL(pdf);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `calculation-report-${calculation.id.padStart(6, '0')}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-    } catch (downloadError) {
-      console.error('Calculation PDF download failed:', downloadError);
-      setPdfError('Unable to download the PDF. Please try again.');
-    } finally {
-      setIsDownloading(false);
     }
   };
 
@@ -169,7 +171,7 @@ export default function CalculationReportPlaceholder() {
         className="report-actions"
         aria-label="Report actions"
       >
-        {calculation.status === 'DRAFT' && (
+        {calculation.status === 'DRAFT' && !isAdmin && (
           <button
             className="secondary-button"
             type="button"
@@ -179,22 +181,12 @@ export default function CalculationReportPlaceholder() {
           </button>
         )}
 
-        {calculation.status === 'FINAL' && (
-          <button
-            type="button"
-            className="primary-button"
-            onClick={() => void handleDownloadPdf()}
-            disabled={isDownloading}
-          >
-            {isDownloading ? 'Preparing PDF...' : 'Download PDF'}
-          </button>
-        )}
 
-        {calculation.status === 'DRAFT' && (
+        {calculation.status === 'DRAFT' && !isAdmin && (
           <button
             className="quiet-button"
             type="button"
-            onClick={() => navigate('/doctor')}
+            onClick={() => navigate(`/doctor?edit=${calculation.id}`)}
           >
             Edit Calculation
           </button>
@@ -203,7 +195,7 @@ export default function CalculationReportPlaceholder() {
         <button
           className="quiet-button"
           type="button"
-          onClick={() => navigate('/doctor')}
+          onClick={() => navigate(isAdmin ? '/admin/billing-history' : '/doctor')}
         >
           Back
         </button>
@@ -217,8 +209,10 @@ export default function CalculationReportPlaceholder() {
           <strong>Finalize this report?</strong>
           <p>Once finalized, this report cannot be edited through the normal calculator flow.</p>
           <div className="actions">
-            <button className="quiet-button" type="button" onClick={() => setShowFinalizeConfirmation(false)} disabled={isFinalizing}>Cancel</button>
-            <button className="primary-button" type="button" onClick={() => void handleFinalize()} disabled={isFinalizing}>{isFinalizing ? 'Finalizing...' : 'Confirm & Finalize'}</button>
+            <button className="quiet-button" type="button" onClick={() => setShowFinalizeConfirmation(false)} disabled={isFinalizing || isDownloading}>Cancel</button>
+            <button className="primary-button" type="button" onClick={() => void handleFinalize()} disabled={isFinalizing || isDownloading}>
+              {isFinalizing ? 'Finalizing...' : isDownloading ? 'Downloading PDF...' : 'Finalize & Download'}
+            </button>
           </div>
         </div>
       )}
@@ -242,28 +236,40 @@ export default function CalculationReportPlaceholder() {
                 {formatDateTime(calculation.created_at)}
               </time>
             </div>
-
-            <div className="report-details-grid">
+            <div className={`report-details-grid${calculation.patient_gender ? ' report-details-grid--three' : ''}`}>
+              {/* Row 1 */}
               <div>
                 <span>Patient Name</span>
                 <strong>{calculation.patient_name}</strong>
               </div>
-
               <div>
                 <span>Patient Age</span>
                 <strong>{calculation.patient_age}</strong>
               </div>
+              {calculation.patient_gender && (
+                <div>
+                  <span>Gender</span>
+                  <strong>
+                    {calculation.patient_gender === 'MALE'
+                      ? 'Male'
+                      : calculation.patient_gender === 'FEMALE'
+                        ? 'Female'
+                        : 'Other'}
+                  </strong>
+                </div>
+              )}
 
-              <div>
+              {/* Row 2 */}
+              <div style={{ gridColumn: calculation.patient_gender ? 'span 3' : 'span 2' }}>
                 <span>Doctor</span>
-                <strong>{calculation.doctor.name}</strong>
-              </div>
-
-              <div>
-                <span>Designation</span>
-                <strong>
-                  {calculation.doctor.designation}
-                </strong>
+                <div>
+                  <strong>{calculation.doctor.name}</strong>
+                  {calculation.doctor.designation && (
+                    <span style={{ fontSize: '0.85rem', color: '#667085', fontWeight: 'normal', marginLeft: '8px' }}>
+                      ({calculation.doctor.designation})
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </section>
@@ -375,24 +381,22 @@ export default function CalculationReportPlaceholder() {
           </section>
 
           <footer className="report-footer">
-  <div className="report-footer-meta">
-    <div>
-      <span>Report ID: </span>
-      <strong>#{calculation.id.padStart(6, '0')}</strong>
-    </div>
+            <div className="report-footer-meta">
+              <span style={{ fontStyle: 'italic', fontSize: '0.8rem', color: '#667085' }}>
+                Note: This cost estimate is valid for 30 days from the date of billing.
+              </span>
+            </div>
 
-  </div>
+            <div className="signature-block">
+              <div className="signature-line" />
 
-  <div className="signature-block">
-    <div className="signature-line" />
+              <span>Signature</span>
 
-    <span>Signature</span>
+              <strong>{calculation.signatory.name}</strong>
 
-    <strong>{calculation.signatory.name}</strong>
-
-    <span>{calculation.signatory.designation}</span>
-  </div>
-</footer> 
+              <span>{calculation.signatory.designation}</span>
+            </div>
+          </footer>
         </div>
       </article>
     </main>

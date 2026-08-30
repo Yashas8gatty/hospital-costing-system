@@ -8,6 +8,7 @@ import PricingManagement from './pages/admin/PricingManagement';
 import ServicesManagement from './pages/admin/ServicesManagement';
 import DoctorManagement from './pages/admin/DoctorManagement';
 import UserManagement from './pages/admin/UserManagement';
+import BillingHistory from './pages/admin/BillingHistory';
 import DoctorDashboard from './pages/doctor/DoctorDashboard';
 import CalculationReportPlaceholder from './pages/doctor/CalculationReportPlaceholder';
 import { getStoredAdmin, getStoredAdminToken } from './services/authService';
@@ -35,6 +36,7 @@ function App() {
         <Route path="/admin/doctors" element={<RequireAdmin><DoctorManagement /></RequireAdmin>} />
         <Route path="/admin/users" element={<RequireAdmin><UserManagement /></RequireAdmin>} />
         <Route path="/admin/audit-logs" element={<RequireAdmin><AuditLogs /></RequireAdmin>} />
+        <Route path="/admin/billing-history" element={<RequireAdmin><BillingHistory /></RequireAdmin>} />
         <Route path="/doctor/login" element={<Navigate to="/" replace />} />
         <Route path="/doctor" element={<RequireUser><DoctorDashboard /></RequireUser>} />
         <Route path="/doctor/report/:id" element={<RequireUser><CalculationReportPlaceholder /></RequireUser>} />

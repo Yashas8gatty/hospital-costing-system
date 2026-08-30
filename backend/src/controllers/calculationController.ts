@@ -83,6 +83,7 @@ export const createCalculation = async (req: AuthenticatedRequest, res: Response
       doctor_id: doctorId,
       patient_name: patientName,
       patient_age: patientAge,
+      patient_gender: patientGender,
       limb_type: limbType,
       volume,
       left_volume: leftVolume,
@@ -106,6 +107,11 @@ export const createCalculation = async (req: AuthenticatedRequest, res: Response
 
     if (!Number.isInteger(patientAge) || patientAge < 0 || patientAge > 150) {
       return res.status(400).json({ message: "patient_age must be an integer between 0 and 150" });
+    }
+
+    const normalizedGender = typeof patientGender === "string" ? patientGender.toUpperCase().trim() : "";
+    if (normalizedGender !== "MALE" && normalizedGender !== "FEMALE" && normalizedGender !== "OTHER") {
+      return res.status(400).json({ message: "patient_gender is required and must be MALE, FEMALE, or OTHER" });
     }
 
     if (limbType !== "UNILATERAL" && limbType !== "BILATERAL") {
@@ -145,10 +151,6 @@ export const createCalculation = async (req: AuthenticatedRequest, res: Response
 
     if (!Array.isArray(services) || !services.every(isServiceSnapshot)) {
       return res.status(400).json({ message: "services must contain valid price snapshots" });
-    }
-
-    if (services.some((service: ServiceSnapshot) => service.duration_days !== durationDays)) {
-      return res.status(400).json({ message: "Service snapshot durations must match duration_days" });
     }
 
     if (!isFiniteNumber(additionalServicesTotal) || additionalServicesTotal < 0) {
@@ -192,11 +194,11 @@ export const createCalculation = async (req: AuthenticatedRequest, res: Response
       `
       INSERT INTO calculation_records (
         doctor_id, doctor_name, doctor_designation, signatory_user_id, signatory_name, signatory_designation,
-        patient_name, patient_age, limb_type, volume, left_volume, right_volume, girth_measurements,
+        patient_name, patient_age, patient_gender, limb_type, volume, left_volume, right_volume, girth_measurements,
         duration_days, financial_category, base_rate, services,
         additional_services_total, total_cost, status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb, $18, $19, 'DRAFT')
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb, $19, $20, 'DRAFT')
       RETURNING id, status
       `,
       [
@@ -208,6 +210,7 @@ export const createCalculation = async (req: AuthenticatedRequest, res: Response
         signatory.designation,
         patientName.trim(),
         patientAge,
+        normalizedGender,
         limbType,
         volume,
         leftVolume,
@@ -240,7 +243,7 @@ export const getCalculation = async (req: Request, res: Response) => {
     const result = await pool.query(
       `
       SELECT
-        cr.id, cr.doctor_id, cr.signatory_user_id, cr.signatory_name, cr.signatory_designation, cr.patient_name, cr.patient_age,
+        cr.id, cr.doctor_id, cr.signatory_user_id, cr.signatory_name, cr.signatory_designation, cr.patient_name, cr.patient_age, cr.patient_gender,
         cr.limb_type, cr.volume, cr.left_volume, cr.right_volume, cr.girth_measurements,
         cr.duration_days, cr.financial_category,
         cr.base_rate, cr.services, cr.additional_services_total,
@@ -267,7 +270,13 @@ export const getCalculation = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Calculation not found" });
     }
 
-    return res.status(200).json({ data: result.rows[0] });
+    const calculation = result.rows[0];
+    const user = (req as AuthenticatedRequest).user;
+    if (user && user.role !== "ADMIN" && calculation.signatory_user_id !== user.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    return res.status(200).json({ data: calculation });
   } catch (error) {
     console.error("Calculation lookup error:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -283,7 +292,7 @@ export const finalizeCalculation = async (req: Request, res: Response) => {
 
   try {
     const existingResult = await pool.query(
-      `SELECT id, status FROM calculation_records WHERE id = $1`,
+      `SELECT id, status, signatory_user_id FROM calculation_records WHERE id = $1`,
       [calculationId]
     );
 
@@ -291,8 +300,14 @@ export const finalizeCalculation = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Calculation not found" });
     }
 
-    if (existingResult.rows[0].status === "FINAL") {
-      return res.status(200).json({ data: existingResult.rows[0] });
+    const calculation = existingResult.rows[0];
+    const user = (req as AuthenticatedRequest).user;
+    if (user && user.role !== "ADMIN" && calculation.signatory_user_id !== user.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    if (calculation.status === "FINAL") {
+      return res.status(200).json({ data: calculation });
     }
 
     const result = await pool.query(
@@ -331,7 +346,7 @@ export const getCalculationPdf = async (req: Request, res: Response) => {
     const result = await pool.query(
       `
       SELECT
-        cr.id, cr.patient_name, cr.patient_age, cr.limb_type, cr.volume,
+        cr.id, cr.signatory_user_id, cr.patient_name, cr.patient_age, cr.patient_gender, cr.limb_type, cr.volume,
         cr.duration_days, cr.financial_category, cr.base_rate, cr.services,
         cr.total_cost, cr.status, cr.created_at,
         json_build_object('id', d.id, 'name', COALESCE(cr.doctor_name, d.name), 'designation', COALESCE(cr.doctor_designation, d.designation)) AS doctor
@@ -353,6 +368,10 @@ export const getCalculationPdf = async (req: Request, res: Response) => {
     }
 
     const calculation = result.rows[0];
+    const user = (req as AuthenticatedRequest).user;
+    if (user && user.role !== "ADMIN" && calculation.signatory_user_id !== user.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
 
     if (calculation.status !== "FINAL") {
       return res.status(409).json({ message: "Calculation is not finalized yet" });

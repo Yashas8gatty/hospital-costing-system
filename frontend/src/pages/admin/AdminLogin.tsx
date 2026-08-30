@@ -68,7 +68,7 @@ function AdminLogin() {
         <div className="page-intro">
           <p className="eyebrow">Hospital costing</p>
           <h1 className="page-title">Login</h1>
-          <p className="page-subtitle">Sign in to continue to hospital costing.</p>
+          <p className="page-subtitle">Sign in to continue.</p>
         </div>
 
         <form onSubmit={handleSubmit}>

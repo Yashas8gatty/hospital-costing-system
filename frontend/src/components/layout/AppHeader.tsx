@@ -49,6 +49,7 @@ function AdminNavigation() {
     ['/admin/users', 'Users'],
     ['/admin/doctors', 'Doctors'],
     ['/admin/audit-logs', 'Audit Logs'],
+    ['/admin/billing-history', 'Billing History'],
   ];
 
   return (

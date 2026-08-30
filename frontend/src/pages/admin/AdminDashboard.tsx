@@ -22,7 +22,6 @@ function AdminDashboard() {
     }
   }, [navigate]);
 
-  const admin = getStoredAdmin();
 
   const handleLogout = () => {
     clearAdminSession();
@@ -35,9 +34,9 @@ function AdminDashboard() {
       <main className="app-page">
         <div className="app-page__inner">
           <div className="page-intro">
-            <p className="eyebrow">Configuration centre</p>
+
             <h1 className="page-title">Admin Dashboard</h1>
-            <p className="page-subtitle">Welcome, {admin?.username ?? 'Admin'}. Manage treatment pricing, services, and review every configuration change.</p>
+
           </div>
           <div className="admin-grid">
             <button className="summary-card summary-card--button" type="button" onClick={() => navigate('/admin/pricing')}>
@@ -54,6 +53,11 @@ function AdminDashboard() {
               <span className="summary-card__label">Audit History</span>
               <strong className="summary-card__value">Review changes</strong>
               <span className="helper">Trace administrative activity</span>
+            </button>
+            <button className="summary-card summary-card--button" type="button" onClick={() => navigate('/admin/billing-history')}>
+              <span className="summary-card__label">Billing History</span>
+              <strong className="summary-card__value">Review bills</strong>
+              <span className="helper">Trace calculated treatments</span>
             </button>
           </div>
         </div>

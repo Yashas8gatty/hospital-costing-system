@@ -33,6 +33,7 @@ export type CreateCalculationPayload = {
   doctor_id: number;
   patient_name: string;
   patient_age: number;
+  patient_gender: 'MALE' | 'FEMALE' | 'OTHER';
   limb_type: 'UNILATERAL' | 'BILATERAL';
   left_volume: number;
   right_volume: number;
@@ -68,6 +69,7 @@ export type CalculationReport = {
   doctor_id: string;
   patient_name: string;
   patient_age: number;
+  patient_gender?: 'MALE' | 'FEMALE' | 'OTHER' | null;
   limb_type: 'UNILATERAL' | 'BILATERAL';
   volume: string;
   left_volume?: string | null;

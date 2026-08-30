@@ -12,6 +12,7 @@ type CalculationForPdf = {
   id: string;
   patient_name: string;
   patient_age: number;
+  patient_gender?: "MALE" | "FEMALE" | "OTHER" | null;
   limb_type: "UNILATERAL" | "BILATERAL";
   volume: string;
   duration_days: number;
@@ -81,39 +82,40 @@ const renderReportHtml = (calculation: CalculationForPdf): string => `<!doctype 
 html, body { margin: 0; padding: 0; background: #fff; }
 body { color: #1f2933; font-family: Arial, sans-serif; font-size: 10px; }
 .report-page { width: 210mm; min-height: 297mm; background: #fff; }
-.report-letterhead-space { height: 50mm; }
-.report-content { display: flex; flex-direction: column; min-height: 247mm; padding: 0 18mm 16mm; }
-.report-section { margin-top: 24px; }
-.report-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 12px; }
-.report-section h2 { margin: 0; color: #007f87; font-family: Georgia, serif; font-size: 16px; }
-.report-section-heading time { color: #667085; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.report-letterhead-space { height: 60mm; }
+.report-content { display: flex; flex-direction: column; min-height: 237mm; padding: 0 18mm 40mm; }
+.report-section { margin-top: 14px; }
+.report-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 8px; }
+.report-section h2 { margin: 0; color: #009ba6; font-family: Georgia, serif; font-size: 14px; }
+.report-section-heading time { color: #667085; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .report-details-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid #e5e7eb; border-left: 1px solid #e5e7eb; }
-.report-details-grid > div { display: grid; gap: 5px; border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; padding: 11px 12px; }
+.report-details-grid > div { display: grid; gap: 4px; border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; padding: 6px 10px; }
 .report-details-grid span, .report-service-row span { color: #667085; font-size: 11px; }
 .report-details-grid strong { color: #1f2933; font-size: 12px; }
+.report-details-grid--three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .report-details-grid--four > div { width: 25%; }
 .report-details-grid--four { display: flex; }
-.report-cost-line, .report-total { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; border-bottom: 1px solid #e5e7eb; padding: 11px 0; }
+.report-cost-line, .report-total { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; border-bottom: 1px solid #e5e7eb; padding: 6px 0; }
 .report-cost-line strong { font-weight: 700; }
-.report-base-line { font-size: 15px; }
-.report-base-line strong { font-size: 16px; }
-.report-services-block { border-bottom: 1px solid #e5e7eb; padding-top: 14px; }
-.report-service-table { width: 100%; margin-top: 12px; }
+.report-base-line { font-size: 14px; }
+.report-base-line strong { font-size: 15px; }
+.report-services-block { border-bottom: 1px solid #e5e7eb; padding-top: 10px; }
+.report-service-table { width: 100%; margin-top: 8px; }
 .report-service-table__header, .report-service-row { display: grid; grid-template-columns: 1.5fr 1.5fr 0.8fr; align-items: center; column-gap: 20px; }
-.report-service-table__header { padding: 0 0 8px; border-bottom: 1px solid #dfe5e7; color: #667085; font-size: 11px; font-weight: 600; }
+.report-service-table__header { padding: 0 0 6px; border-bottom: 1px solid #dfe5e7; color: #667085; font-size: 11px; font-weight: 600; }
 .report-service-table__header span:last-child, .report-service-row > strong:last-child { text-align: right; }
-.report-service-row { padding: 11px 0; border-bottom: 1px solid #edf0f1; }
+.report-service-row { padding: 6px 0; border-bottom: 1px solid #edf0f1; }
 .report-service-row:last-child { border-bottom: 0; }
 .report-service-row > span { color: #667085; font-size: 11px; }
 .report-service-row > strong:first-child { color: #1f2933; font-size: 12px; }
 .report-service-row > strong:last-child { color: #1f2933; font-size: 12px; }
-.report-services-label { margin-top: 18px; color: #007f87; font-family: Georgia, serif; font-size: 16px; font-weight: 700; }
-.report-no-services { margin: 10px 0 0; color: #667085; font-size: 12px; }
-.report-total { margin-top: 14px; padding-top: 12px; border-top: 1px solid #0097a0; border-bottom: 0; color: #007f87; font-family: Georgia, serif; font-size: 17px; font-weight: 600; }
-.report-total strong { color: #007f87; font-size: 18px; }
-.report-footer { display: grid; grid-template-columns: minmax(0, 1fr) 250px; align-items: end; column-gap: 30px; margin-top: auto; padding-top: 42px; }
+.report-services-label { margin-top: 14px; color: #009ba6; font-family: Georgia, serif; font-size: 14px; font-weight: 700; }
+.report-no-services { margin: 8px 0 0; color: #667085; font-size: 11px; }
+.report-total { margin-top: 8px; padding-top: 8px; border-top: 1px solid #009ba6; border-bottom: 0; color: #009ba6; font-family: Georgia, serif; font-size: 16px; font-weight: 600; }
+.report-total strong { color: #009ba6; font-size: 17px; }
+.report-footer { display: grid; grid-template-columns: minmax(0, 1fr) 250px; align-items: end; column-gap: 30px; margin-top: auto; padding-top: 16px; }
 .report-footer-meta { align-self: end; display: flex; justify-content: space-between; align-items: end; width: 100%; color: #667085; font-size: 10px; }
-.signature-block { width: 250px; margin-left: auto; margin-top: 34px; display: flex; flex-direction: column; align-items: flex-end; text-align: right; color: #667085; font-size: 10px; }
+.signature-block { width: 250px; margin-left: auto; margin-top: 12px; display: flex; flex-direction: column; align-items: flex-end; text-align: right; color: #667085; font-size: 10px; }
 .signature-line { width: 100%; margin-bottom: 6px; border-top: 1px solid #263238; }
 .signature-block strong { margin-top: 14px; color: #1f2933; font-size: 12px; }
 .signature-block > span:last-child { margin-top: 4px; }
@@ -125,11 +127,25 @@ body { color: #1f2933; font-family: Arial, sans-serif; font-size: 10px; }
   <div class="report-content">
     <section class="report-section">
       <div class="report-section-heading"><h2>Patient Details</h2><time>${formatDate(calculation.created_at)}</time></div>
-      <div class="report-details-grid">
+      <div class="report-details-grid ${calculation.patient_gender ? 'report-details-grid--three' : ''}">
+        <!-- Row 1 -->
         <div><span>Patient Name</span><strong>${escapeHtml(calculation.patient_name)}</strong></div>
         <div><span>Patient Age</span><strong>${calculation.patient_age}</strong></div>
-        <div><span>Doctor</span><strong>${escapeHtml(calculation.doctor.name)}</strong></div>
-        <div><span>Designation</span><strong>${escapeHtml(calculation.doctor.designation)}</strong></div>
+        ${calculation.patient_gender ? `
+          <div>
+            <span>Gender</span>
+            <strong>${escapeHtml(calculation.patient_gender === "MALE" ? "Male" : calculation.patient_gender === "FEMALE" ? "Female" : "Other")}</strong>
+          </div>
+        ` : ""}
+
+        <!-- Row 2 -->
+        <div style="grid-column: ${calculation.patient_gender ? 'span 3' : 'span 2'};">
+          <span>Doctor</span>
+          <div>
+            <strong>${escapeHtml(calculation.doctor.name)}</strong>
+            ${calculation.doctor.designation ? `<span style="font-size: 11px; color: #667085; font-weight: normal; margin-left: 8px;">(${escapeHtml(calculation.doctor.designation)})</span>` : ""}
+          </div>
+        </div>
       </div>
     </section>
     <section class="report-section">
@@ -148,7 +164,11 @@ body { color: #1f2933; font-family: Arial, sans-serif; font-size: 10px; }
       <div class="report-total"><span>Total Treatment Cost</span><strong>${formatCurrency(calculation.total_cost)}</strong></div>
     </section>
     <footer class="report-footer">
-      <div class="report-footer-meta"><div>Report ID: <strong>#${calculation.id.padStart(6, "0")}</strong></div></div>
+      <div class="report-footer-meta">
+        <span style="font-style: italic; font-size: 10px; color: #667085;">
+          Note: This cost estimate is valid for 30 days from the date of billing.
+        </span>
+      </div>
       <div class="signature-block"><div class="signature-line"></div><span>Signature</span><strong>${escapeHtml(calculation.signatory.name)}</strong><span>${escapeHtml(calculation.signatory.designation)}</span></div>
     </footer>
   </div>

@@ -159,6 +159,7 @@ export const ensureCalculationRecordsTable = async (): Promise<void> => {
   await pool.query(`ALTER TABLE calculation_records ADD COLUMN IF NOT EXISTS left_volume NUMERIC`);
   await pool.query(`ALTER TABLE calculation_records ADD COLUMN IF NOT EXISTS right_volume NUMERIC`);
   await pool.query(`ALTER TABLE calculation_records ADD COLUMN IF NOT EXISTS girth_measurements JSONB`);
+  await pool.query(`ALTER TABLE calculation_records ADD COLUMN IF NOT EXISTS patient_gender TEXT CHECK (patient_gender IN ('MALE', 'FEMALE', 'OTHER'))`);
   await pool.query(`ALTER TABLE doctors ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
 };
 

@@ -44,7 +44,7 @@ function PricingManagement() {
         setError('');
         const data = await getAdminPricing();
         setRecords(data);
-      } catch (fetchError) {
+      } catch {
         setError('Unable to load pricing records. Please try again.');
       } finally {
         setLoading(false);
@@ -73,10 +73,6 @@ function PricingManagement() {
       return matchesSearch && matchesLimbType && matchesDuration && matchesCategory;
     });
   }, [records, search, limbTypeFilter, durationFilter, categoryFilter]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [search, limbTypeFilter, durationFilter, categoryFilter]);
 
   const totalRecords = filteredRecords.length;
   const totalPages = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
@@ -241,7 +237,10 @@ function PricingManagement() {
               <input
                 type="text"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="Volume range or limb type"
                 style={{
                   width: '100%',
@@ -260,7 +259,10 @@ function PricingManagement() {
               <span>Limb Type</span>
               <select
                 value={limbTypeFilter}
-                onChange={(event) => setLimbTypeFilter(event.target.value as 'All' | 'UNILATERAL' | 'BILATERAL')}
+                onChange={(event) => {
+                  setLimbTypeFilter(event.target.value as 'All' | 'UNILATERAL' | 'BILATERAL');
+                  setPage(1);
+                }}
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
@@ -284,7 +286,10 @@ function PricingManagement() {
               <span>Duration</span>
               <select
                 value={durationFilter}
-                onChange={(event) => setDurationFilter(event.target.value as 'All' | '7' | '10' | '14' | '21')}
+                onChange={(event) => {
+                  setDurationFilter(event.target.value as 'All' | '7' | '10' | '14' | '21');
+                  setPage(1);
+                }}
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
@@ -308,7 +313,10 @@ function PricingManagement() {
               <span>Financial Category</span>
               <select
                 value={categoryFilter}
-                onChange={(event) => setCategoryFilter(event.target.value as 'All' | '1' | '2' | '3' | '4')}
+                onChange={(event) => {
+                  setCategoryFilter(event.target.value as 'All' | '1' | '2' | '3' | '4');
+                  setPage(1);
+                }}
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
