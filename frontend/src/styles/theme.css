@@ -216,7 +216,7 @@ tbody tr:hover { background: #fbfdfd; }
 .report-state { display: grid; justify-items: center; gap: 16px; width: min(100%, 620px); margin: 0 auto; padding: 80px 24px; text-align: center; }
 .report-state .page-title { font-size: 2rem; }
 @media (max-width: 900px) { .report-shell { overflow-x: auto; } .report-page { margin-left: max(0px, calc((100vw - 210mm) / 2)); margin-right: max(0px, calc((100vw - 210mm) / 2)); } }
-@media print { .report-shell { padding: 0; background: var(--iad-white); } .report-actions { display: none; } .report-page { box-shadow: none; margin: 0; } }
+@media print { .report-shell { padding: 0; background: var(--iad-white); } .report-actions { display: none; } .report-page { box-shadow: none; margin: 0; } .no-print { display: none !important; } }
 
 .legacy-admin-page { min-height: calc(100vh - 165px) !important; padding: 44px 32px 72px !important; background: var(--iad-soft) !important; color: var(--iad-text) !important; font-family: var(--iad-sans) !important; }
 .legacy-admin-page > div { width: min(1400px, 100%) !important; margin: 0 auto !important; }

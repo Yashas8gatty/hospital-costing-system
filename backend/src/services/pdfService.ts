@@ -29,6 +29,8 @@ type CalculationForPdf = {
     name: string;
     designation: string;
   };
+  result_image_base64?: string | null;
+  result_image_mime_type?: string | null;
 };
 
 const escapeHtml = (value: string): string => value
@@ -157,6 +159,14 @@ body { color: #1f2933; font-family: Arial, sans-serif; font-size: 10px; }
         <div><span>Financial Category</span><strong>${calculation.financial_category}</strong></div>
       </div>
     </section>
+    ${calculation.result_image_base64 ? `
+    <section class="report-section">
+      <h2>Result / Clinical Image</h2>
+      <div style="margin-top: 8px; display: flex; justify-content: center; align-items: center;">
+        <img src="data:${calculation.result_image_mime_type || 'image/jpeg'};base64,${calculation.result_image_base64}" style="max-width: 100%; max-height: 160px; object-fit: contain; border-radius: 4px; border: 1px solid #dfe5e7;" alt="Clinical Result" />
+      </div>
+    </section>
+    ` : ""}
     <section class="report-section">
       <h2>Cost Breakdown</h2>
       <div class="report-cost-line report-base-line"><span>Base Treatment</span><strong>${formatCurrency(calculation.base_rate)}</strong></div>

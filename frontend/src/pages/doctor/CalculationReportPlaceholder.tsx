@@ -5,6 +5,9 @@ import {
   finalizeCalculation,
   getCalculationPdf,
   getCalculation,
+  uploadResultImage,
+  removeResultImage,
+  getResultImageBlob,
   type CalculationReport,
 } from '../../services/calculationService';
 import { getStoredAdmin } from '../../services/authService';
@@ -50,6 +53,11 @@ export default function CalculationReportPlaceholder() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [pdfError, setPdfError] = useState('');
 
+  const [resultImageSrc, setResultImageSrc] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+
   useEffect(() => {
     if (!id) {
       return;
@@ -58,7 +66,16 @@ export default function CalculationReportPlaceholder() {
     const loadCalculation = async () => {
       try {
         setError(null);
-        setCalculation(await getCalculation(id));
+        const data = await getCalculation(id);
+        setCalculation(data);
+        if (data.result_image_path) {
+          try {
+            const blob = await getResultImageBlob(id);
+            setResultImageSrc(URL.createObjectURL(blob));
+          } catch (imgError) {
+            console.error('Failed to load image blob:', imgError);
+          }
+        }
       } catch (requestError) {
         const axiosError = requestError as {
           response?: {
@@ -78,6 +95,78 @@ export default function CalculationReportPlaceholder() {
 
     void loadCalculation();
   }, [id]);
+
+  useEffect(() => {
+    return () => {
+      if (resultImageSrc) {
+        URL.revokeObjectURL(resultImageSrc);
+      }
+    };
+  }, [resultImageSrc]);
+
+  const handleUploadImage = async (file: File) => {
+    if (!id || !calculation) return;
+
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedMimeTypes.includes(file.type)) {
+      setUploadError('Invalid file type. Only JPG, PNG, and WEBP are accepted.');
+      return;
+    }
+
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setUploadError('Image must be 10 MB or smaller.');
+      return;
+    }
+
+    setUploadError('');
+    setIsUploadingImage(true);
+
+    try {
+      const response = await uploadResultImage(id, file);
+      setCalculation((current) => current ? {
+        ...current,
+        result_image_path: response.result_image_path,
+        result_image_original_name: response.result_image_original_name,
+        result_image_mime_type: response.result_image_mime_type,
+        result_image_size: response.result_image_size,
+      } : current);
+      const blob = await getResultImageBlob(id);
+      setResultImageSrc(URL.createObjectURL(blob));
+    } catch (err) {
+      console.error('Upload failed:', err);
+      setUploadError('Failed to upload image. Please try again.');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handleRemoveImage = async () => {
+    if (!id || !calculation) return;
+
+    setIsUploadingImage(true);
+    setUploadError('');
+
+    try {
+      await removeResultImage(id);
+      setCalculation((current) => current ? {
+        ...current,
+        result_image_path: null,
+        result_image_original_name: null,
+        result_image_mime_type: null,
+        result_image_size: null,
+      } : current);
+      if (resultImageSrc) {
+        URL.revokeObjectURL(resultImageSrc);
+        setResultImageSrc(null);
+      }
+    } catch (err) {
+      console.error('Remove failed:', err);
+      setUploadError('Failed to remove image. Please try again.');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   const downloadPdfFile = async (calcDbId: string, calcDisplayId: string) => {
     setIsDownloading(true);
@@ -308,6 +397,104 @@ export default function CalculationReportPlaceholder() {
               </div>
             </div>
           </section>
+
+          {/* ================= RESULT / CLINICAL IMAGE ================= */}
+          {(calculation.result_image_path || (calculation.status === 'DRAFT' && !isAdmin)) && (
+            <section className="report-section">
+              <h2>Result / Clinical Image</h2>
+              {resultImageSrc ? (
+                <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                  <img
+                    src={resultImageSrc}
+                    style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '4px', border: '1px solid #dfe5e7' }}
+                    alt="Clinical Result"
+                  />
+                  {calculation.status === 'DRAFT' && !isAdmin && (
+                    <button
+                      className="secondary-button no-print"
+                      type="button"
+                      onClick={() => void handleRemoveImage()}
+                      disabled={isUploadingImage}
+                      style={{ borderColor: '#d92d20', color: '#d92d20', fontSize: '0.85rem', padding: '6px 12px' }}
+                    >
+                      Remove Image
+                    </button>
+                  )}
+                </div>
+              ) : (
+                calculation.status === 'DRAFT' && !isAdmin && (
+                  <div className="no-print" style={{ marginTop: '12px' }}>
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDraggingOver(true);
+                      }}
+                      onDragLeave={() => setIsDraggingOver(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsDraggingOver(false);
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) {
+                          void handleUploadImage(file);
+                        }
+                      }}
+                      style={{
+                        border: isDraggingOver ? '2px dashed #009ba6' : '2px dashed #e5e7eb',
+                        borderRadius: '8px',
+                        padding: '24px',
+                        textAlign: 'center',
+                        backgroundColor: isDraggingOver ? '#f0fbfc' : '#fcfcfd',
+                        transition: 'all 0.2s ease',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => {
+                        document.getElementById('file-upload-input')?.click();
+                      }}
+                    >
+                      <input
+                        id="file-upload-input"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            void handleUploadImage(file);
+                          }
+                        }}
+                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '1rem', color: '#344054', fontWeight: '500' }}>
+                          {isUploadingImage ? 'Uploading...' : 'Drag & drop image here'}
+                        </span>
+                        <span style={{ fontSize: '0.85rem', color: '#667085' }}>or</span>
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          disabled={isUploadingImage}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            document.getElementById('file-upload-input')?.click();
+                          }}
+                          style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                        >
+                          Choose Image
+                        </button>
+                        <span style={{ fontSize: '0.75rem', color: '#98a2b3' }}>
+                          JPG / PNG / WEBP (Max 10 MB)
+                        </span>
+                      </div>
+                    </div>
+                    {uploadError && (
+                      <div style={{ marginTop: '8px', color: '#d92d20', fontSize: '0.85rem', fontWeight: '500' }}>
+                        {uploadError}
+                      </div>
+                    )}
+                  </div>
+                )
+              )}
+            </section>
+          )}
 
           {/* ================= COST BREAKDOWN ================= */}
           <section className="report-section report-cost-section">

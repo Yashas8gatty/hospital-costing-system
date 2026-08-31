@@ -86,6 +86,10 @@ export type CalculationReport = {
   updated_at: string;
   doctor: ReportDoctor;
   signatory: ReportDoctor;
+  result_image_path?: string | null;
+  result_image_original_name?: string | null;
+  result_image_mime_type?: string | null;
+  result_image_size?: number | null;
 };
 
 type CalculationResponse = {
@@ -119,6 +123,43 @@ export const finalizeCalculation = async (id: string): Promise<FinalizedCalculat
 
 export const getCalculationPdf = async (id: string): Promise<Blob> => {
   const response = await api.get<Blob>(`/calculations/${id}/pdf`, {
+    responseType: 'blob',
+  });
+  return response.data;
+};
+
+export const uploadResultImage = async (
+  id: string,
+  file: File,
+): Promise<{
+  result_image_path: string;
+  result_image_original_name: string;
+  result_image_mime_type: string;
+  result_image_size: number;
+}> => {
+  const formData = new FormData();
+  formData.append('image', file);
+  const response = await api.post<{
+    data: {
+      result_image_path: string;
+      result_image_original_name: string;
+      result_image_mime_type: string;
+      result_image_size: number;
+    };
+  }>(`/calculations/${id}/result-image`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data.data;
+};
+
+export const removeResultImage = async (id: string): Promise<void> => {
+  await api.delete(`/calculations/${id}/result-image`);
+};
+
+export const getResultImageBlob = async (id: string): Promise<Blob> => {
+  const response = await api.get<Blob>(`/calculations/${id}/result-image`, {
     responseType: 'blob',
   });
   return response.data;
