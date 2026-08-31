@@ -1,4 +1,7 @@
 import { Request, Response } from "express";
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
 import { pool } from "../config/database";
 import { generateCalculationPdf } from "../services/pdfService";
 import type { AuthenticatedRequest } from "../middleware/authMiddleware";
@@ -248,6 +251,7 @@ export const getCalculation = async (req: Request, res: Response) => {
         cr.duration_days, cr.financial_category,
         cr.base_rate, cr.services, cr.additional_services_total,
         cr.total_cost, cr.status, cr.created_at, cr.updated_at,
+        cr.result_image_path, cr.result_image_original_name, cr.result_image_mime_type, cr.result_image_size,
         json_build_object(
           'id', d.id,
           'name', COALESCE(cr.doctor_name, d.name),
@@ -349,6 +353,7 @@ export const getCalculationPdf = async (req: Request, res: Response) => {
         cr.id, cr.signatory_user_id, cr.patient_name, cr.patient_age, cr.patient_gender, cr.limb_type, cr.volume,
         cr.duration_days, cr.financial_category, cr.base_rate, cr.services,
         cr.total_cost, cr.status, cr.created_at,
+        cr.result_image_path, cr.result_image_mime_type,
         json_build_object('id', d.id, 'name', COALESCE(cr.doctor_name, d.name), 'designation', COALESCE(cr.doctor_designation, d.designation)) AS doctor
         , json_build_object(
           'id', u.id,
@@ -377,7 +382,23 @@ export const getCalculationPdf = async (req: Request, res: Response) => {
       return res.status(409).json({ message: "Calculation is not finalized yet" });
     }
 
-    const pdf = await generateCalculationPdf(calculation);
+    let result_image_base64: string | null = null;
+    if (calculation.result_image_path) {
+      const imgPath = path.join(process.cwd(), calculation.result_image_path);
+      if (fs.existsSync(imgPath)) {
+        try {
+          result_image_base64 = fs.readFileSync(imgPath).toString("base64");
+        } catch (readError) {
+          console.error("Failed to read image for PDF generation:", readError);
+        }
+      }
+    }
+
+    const pdf = await generateCalculationPdf({
+      ...calculation,
+      result_image_base64,
+      result_image_mime_type: calculation.result_image_mime_type,
+    });
     const filename = `calculation-report-${String(calculation.id).padStart(6, "0")}.pdf`;
 
     res.setHeader("Content-Type", "application/pdf");
@@ -386,5 +407,226 @@ export const getCalculationPdf = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Calculation PDF generation error:", error);
     return res.status(500).json({ message: "Unable to generate PDF" });
+  }
+};
+
+export const uploadResultImage = async (req: Request, res: Response) => {
+  const calculationId = Number(req.params.id);
+  if (!Number.isInteger(calculationId) || calculationId <= 0) {
+    return res.status(404).json({ message: "Calculation not found" });
+  }
+
+  const user = (req as AuthenticatedRequest).user;
+  if (!user) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+
+  try {
+    const existingResult = await pool.query(
+      `SELECT id, status, signatory_user_id, result_image_path FROM calculation_records WHERE id = $1`,
+      [calculationId]
+    );
+
+    if (existingResult.rows.length === 0) {
+      return res.status(404).json({ message: "Calculation not found" });
+    }
+
+    const calculation = existingResult.rows[0];
+
+    // Only the signatory doctor who created it can modify it
+    if (calculation.signatory_user_id !== user.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    if (calculation.status !== "DRAFT") {
+      return res.status(403).json({ message: "Cannot modify finalized calculations" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
+
+    // Validate mime type
+    const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedMimeTypes.includes(req.file.mimetype)) {
+      return res.status(400).json({ message: "Invalid file type. Only JPG, PNG, and WEBP are accepted." });
+    }
+
+    // Validate size (10 MB = 10 * 1024 * 1024 bytes)
+    const maxSize = 10 * 1024 * 1024;
+    if (req.file.size > maxSize) {
+      return res.status(400).json({ message: "Image must be 10 MB or smaller." });
+    }
+
+    // Generate unique name
+    const uniqueId = crypto.randomBytes(3).toString("hex");
+    let ext = ".jpg";
+    if (req.file.mimetype === "image/png") ext = ".png";
+    else if (req.file.mimetype === "image/webp") ext = ".webp";
+    
+    const filename = `result-${uniqueId}${ext}`;
+    const paddedId = String(calculationId).padStart(6, "0");
+    
+    // Directory path
+    const uploadDir = path.join(process.cwd(), "uploads", "calculations", paddedId);
+    fs.mkdirSync(uploadDir, { recursive: true });
+    
+    const filePath = path.join(uploadDir, filename);
+    const relativePath = path.join("uploads", "calculations", paddedId, filename).replace(/\\/g, "/");
+
+    // Remove old file if it exists to avoid orphans
+    if (calculation.result_image_path) {
+      const oldPath = path.join(process.cwd(), calculation.result_image_path);
+      if (fs.existsSync(oldPath)) {
+        try {
+          fs.unlinkSync(oldPath);
+        } catch (unlinkError) {
+          console.error("Failed to delete old image file:", unlinkError);
+        }
+      }
+    }
+
+    // Write file
+    fs.writeFileSync(filePath, req.file.buffer);
+
+    // Save metadata
+    await pool.query(
+      `
+      UPDATE calculation_records
+      SET
+        result_image_path = $1,
+        result_image_original_name = $2,
+        result_image_mime_type = $3,
+        result_image_size = $4,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5
+      `,
+      [relativePath, req.file.originalname, req.file.mimetype, req.file.size, calculationId]
+    );
+
+    return res.status(200).json({
+      message: "Image uploaded successfully",
+      data: {
+        result_image_path: relativePath,
+        result_image_original_name: req.file.originalname,
+        result_image_mime_type: req.file.mimetype,
+        result_image_size: req.file.size,
+      }
+    });
+
+  } catch (error) {
+    console.error("Upload image error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const removeResultImage = async (req: Request, res: Response) => {
+  const calculationId = Number(req.params.id);
+  if (!Number.isInteger(calculationId) || calculationId <= 0) {
+    return res.status(404).json({ message: "Calculation not found" });
+  }
+
+  const user = (req as AuthenticatedRequest).user;
+  if (!user) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+
+  try {
+    const existingResult = await pool.query(
+      `SELECT id, status, signatory_user_id, result_image_path FROM calculation_records WHERE id = $1`,
+      [calculationId]
+    );
+
+    if (existingResult.rows.length === 0) {
+      return res.status(404).json({ message: "Calculation not found" });
+    }
+
+    const calculation = existingResult.rows[0];
+
+    // Only the signatory doctor who created it can modify it
+    if (calculation.signatory_user_id !== user.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    if (calculation.status !== "DRAFT") {
+      return res.status(403).json({ message: "Cannot modify finalized calculations" });
+    }
+
+    if (calculation.result_image_path) {
+      const filePath = path.join(process.cwd(), calculation.result_image_path);
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (unlinkError) {
+          console.error("Failed to delete image file:", unlinkError);
+        }
+      }
+    }
+
+    await pool.query(
+      `
+      UPDATE calculation_records
+      SET
+        result_image_path = NULL,
+        result_image_original_name = NULL,
+        result_image_mime_type = NULL,
+        result_image_size = NULL,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      `,
+      [calculationId]
+    );
+
+    return res.status(200).json({ message: "Image removed successfully" });
+
+  } catch (error) {
+    console.error("Remove image error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getResultImage = async (req: Request, res: Response) => {
+  const calculationId = Number(req.params.id);
+  if (!Number.isInteger(calculationId) || calculationId <= 0) {
+    return res.status(404).json({ message: "Calculation not found" });
+  }
+
+  const user = (req as AuthenticatedRequest).user;
+  if (!user) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT signatory_user_id, result_image_path, result_image_mime_type FROM calculation_records WHERE id = $1`,
+      [calculationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Calculation not found" });
+    }
+
+    const calculation = result.rows[0];
+
+    // Authorization check
+    if (user.role !== "ADMIN" && calculation.signatory_user_id !== user.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    if (!calculation.result_image_path) {
+      return res.status(404).json({ message: "Image not found for this calculation" });
+    }
+
+    const filePath = path.join(process.cwd(), calculation.result_image_path);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: "Physical image file not found on server" });
+    }
+
+    res.setHeader("Content-Type", calculation.result_image_mime_type || "image/jpeg");
+    return res.sendFile(filePath);
+
+  } catch (error) {
+    console.error("Get image error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
