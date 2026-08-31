@@ -88,7 +88,7 @@ body { color: #1f2933; font-family: Arial, sans-serif; font-size: 10px; }
 .report-content { display: flex; flex-direction: column; min-height: 237mm; padding: 0 18mm 40mm; }
 .report-section { margin-top: 14px; }
 .report-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 8px; }
-.report-section h2 { margin: 0; color: #009ba6; font-family: Georgia, serif; font-size: 14px; }
+.report-section h2 { margin: 0 0 12px; color: #009ba6; font-family: Georgia, serif; font-size: 14px; }
 .report-section-heading time { color: #667085; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .report-details-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid #e5e7eb; border-left: 1px solid #e5e7eb; }
 .report-details-grid > div { display: grid; gap: 4px; border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; padding: 6px 10px; }
@@ -121,6 +121,12 @@ body { color: #1f2933; font-family: Arial, sans-serif; font-size: 10px; }
 .signature-line { width: 100%; margin-bottom: 6px; border-top: 1px solid #263238; }
 .signature-block strong { margin-top: 14px; color: #1f2933; font-size: 12px; }
 .signature-block > span:last-child { margin-top: 4px; }
+.report-treatment-image-row {
+  display: grid;
+  grid-template-columns: calc(65% - 12px) calc(35% - 12px);
+  column-gap: 24px;
+  align-items: start;
+}
 </style>
 </head>
 <body>
@@ -150,24 +156,37 @@ body { color: #1f2933; font-family: Arial, sans-serif; font-size: 10px; }
         </div>
       </div>
     </section>
-    <section class="report-section">
+    ${calculation.result_image_base64 ? `
+    <div class="report-treatment-image-row" style="margin-top: 28px;">
+      <!-- Left Column: Treatment Details -->
+      <section class="report-section" style="margin-top: 0;">
+        <h2>Treatment Details</h2>
+        <div class="report-details-grid">
+          <div><span>Limb Type</span><strong>${formatLimbType(calculation.limb_type)}</strong></div>
+          <div><span>Volume</span><strong>${escapeHtml(calculation.volume)} Litres</strong></div>
+          <div style="grid-column: span 2;"><span>Duration</span><strong>${calculation.duration_days} days</strong></div>
+        </div>
+      </section>
+
+      <!-- Right Column: Clinical Image (No header, start directly at top of column) -->
+      <div style="display: flex; flex-direction: column; align-items: center;">
+        <div style="display: flex; flex-direction: column; align-items: center;">
+          <img src="data:${calculation.result_image_mime_type || 'image/jpeg'};base64,${calculation.result_image_base64}" style="max-width: 100%; max-height: 140px; object-fit: contain; border-radius: 4px; border: 1px solid #dfe5e7;" alt="Clinical Result" />
+          <span style="font-size: 10px; color: #667085; margin-top: 6px; text-align: center; font-family: Arial, sans-serif; font-weight: bold;">Clinical Image</span>
+        </div>
+      </div>
+    </div>
+    ` : `
+    <section class="report-section" style="margin-top: 28px;">
       <h2>Treatment Details</h2>
-      <div class="report-details-grid report-details-grid--four">
+      <div class="report-details-grid">
         <div><span>Limb Type</span><strong>${formatLimbType(calculation.limb_type)}</strong></div>
         <div><span>Volume</span><strong>${escapeHtml(calculation.volume)} Litres</strong></div>
-        <div><span>Duration</span><strong>${calculation.duration_days} days</strong></div>
-        <div><span>Financial Category</span><strong>${calculation.financial_category}</strong></div>
+        <div style="grid-column: span 2;"><span>Duration</span><strong>${calculation.duration_days} days</strong></div>
       </div>
     </section>
-    ${calculation.result_image_base64 ? `
-    <section class="report-section">
-      <h2>Result / Clinical Image</h2>
-      <div style="margin-top: 8px; display: flex; justify-content: center; align-items: center;">
-        <img src="data:${calculation.result_image_mime_type || 'image/jpeg'};base64,${calculation.result_image_base64}" style="max-width: 100%; max-height: 160px; object-fit: contain; border-radius: 4px; border: 1px solid #dfe5e7;" alt="Clinical Result" />
-      </div>
-    </section>
-    ` : ""}
-    <section class="report-section">
+    `}
+    <section class="report-section" style="margin-top: 16px;">
       <h2>Cost Breakdown</h2>
       <div class="report-cost-line report-base-line"><span>Base Treatment</span><strong>${formatCurrency(calculation.base_rate)}</strong></div>
       <div class="report-services-block"><div class="report-services-label">Additional Services</div>${renderServices(calculation)}</div>
@@ -176,7 +195,7 @@ body { color: #1f2933; font-family: Arial, sans-serif; font-size: 10px; }
     <footer class="report-footer">
       <div class="report-footer-meta">
         <span style="font-style: italic; font-size: 10px; color: #667085;">
-          Note: This cost estimate is valid for 30 days from the date of billing.
+          Note: This cost estimate is valid for 90 days from the date of billing.
         </span>
       </div>
       <div class="signature-block"><div class="signature-line"></div><span>Signature</span><strong>${escapeHtml(calculation.signatory.name)}</strong><span>${escapeHtml(calculation.signatory.designation)}</span></div>

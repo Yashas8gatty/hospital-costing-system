@@ -239,3 +239,9 @@ tbody tr:hover { background: #fbfdfd; }
 
 @media (max-width: 900px) { .form-grid, .admin-grid, .doctor-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 620px) { :root { --iad-content-gutter: 16px; } .app-header__inner, .app-nav__inner { width: min(var(--iad-content-width), calc(100% - (var(--iad-content-gutter) * 2))); } .app-header__inner { min-height: 92px; } .brand img { width: 150px; height: 68px; } .app-header__tools { gap: 12px; } .app-page { padding: 30px var(--iad-content-gutter) 52px; } .panel { padding: 20px; } .form-grid, .admin-grid, .filter-grid, .doctor-list { grid-template-columns: 1fr; } .volume-pair, .billing-volume { grid-template-columns: 1fr; } .girth-row { grid-template-columns: minmax(130px, 1.4fr) repeat(2, minmax(80px, 1fr)); gap: 8px; font-size: 0.85rem; } .pagination { align-items: flex-start; flex-direction: column; } }
+.report-treatment-image-row {
+  display: grid;
+  grid-template-columns: calc(65% - 12px) calc(35% - 12px);
+  column-gap: 24px;
+  align-items: start;
+}

@@ -363,141 +363,149 @@ export default function CalculationReportPlaceholder() {
             </div>
           </section>
 
-          {/* ================= TREATMENT DETAILS ================= */}
-          <section className="report-section">
-            <h2>Treatment Details</h2>
+          {/* ================= TREATMENT & IMAGE LAYOUT ================= */}
+          {(() => {
+            const hasImageSection = !!(calculation.result_image_path || (calculation.status === 'DRAFT' && !isAdmin));
+            return hasImageSection ? (
+              <div className="report-treatment-image-row" style={{ marginTop: '28px' }}>
+                {/* Left Column: Treatment Details */}
+                <section className="report-section" style={{ marginTop: 0 }}>
+                  <h2>Treatment Details</h2>
+                  <div className="report-details-grid">
+                    <div>
+                      <span>Limb Type</span>
+                      <strong>{formatLimbType(calculation.limb_type)}</strong>
+                    </div>
+                    <div>
+                      <span>Billing Volume</span>
+                      <strong>{calculation.volume} Litres</strong>
+                    </div>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <span>Duration</span>
+                      <strong>{calculation.duration_days} days</strong>
+                    </div>
+                  </div>
+                </section>
 
-            <div className="report-details-grid report-details-grid--four">
-              <div>
-                <span>Limb Type</span>
-                <strong>
-                  {formatLimbType(calculation.limb_type)}
-                </strong>
-              </div>
-
-              <div>
-                <span>Billing Volume</span>
-                <strong>
-                  {calculation.volume} Litres
-                </strong>
-              </div>
-
-              <div>
-                <span>Duration</span>
-                <strong>
-                  {calculation.duration_days} days
-                </strong>
-              </div>
-
-              <div>
-                <span>Financial Category</span>
-                <strong>
-                  {calculation.financial_category}
-                </strong>
-              </div>
-            </div>
-          </section>
-
-          {/* ================= RESULT / CLINICAL IMAGE ================= */}
-          {(calculation.result_image_path || (calculation.status === 'DRAFT' && !isAdmin)) && (
-            <section className="report-section">
-              <h2>Result / Clinical Image</h2>
-              {resultImageSrc ? (
-                <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                  <img
-                    src={resultImageSrc}
-                    style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '4px', border: '1px solid #dfe5e7' }}
-                    alt="Clinical Result"
-                  />
-                  {calculation.status === 'DRAFT' && !isAdmin && (
-                    <button
-                      className="secondary-button no-print"
-                      type="button"
-                      onClick={() => void handleRemoveImage()}
-                      disabled={isUploadingImage}
-                      style={{ borderColor: '#d92d20', color: '#d92d20', fontSize: '0.85rem', padding: '6px 12px' }}
-                    >
-                      Remove Image
-                    </button>
-                  )}
-                </div>
-              ) : (
-                calculation.status === 'DRAFT' && !isAdmin && (
-                  <div className="no-print" style={{ marginTop: '12px' }}>
-                    <div
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setIsDraggingOver(true);
-                      }}
-                      onDragLeave={() => setIsDraggingOver(false)}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        setIsDraggingOver(false);
-                        const file = e.dataTransfer.files?.[0];
-                        if (file) {
-                          void handleUploadImage(file);
-                        }
-                      }}
-                      style={{
-                        border: isDraggingOver ? '2px dashed #009ba6' : '2px dashed #e5e7eb',
-                        borderRadius: '8px',
-                        padding: '24px',
-                        textAlign: 'center',
-                        backgroundColor: isDraggingOver ? '#f0fbfc' : '#fcfcfd',
-                        transition: 'all 0.2s ease',
-                        cursor: 'pointer',
-                      }}
-                      onClick={() => {
-                        document.getElementById('file-upload-input')?.click();
-                      }}
-                    >
-                      <input
-                        id="file-upload-input"
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        style={{ display: 'none' }}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            void handleUploadImage(file);
-                          }
-                        }}
+                {/* Right Column: Clinical Image (No header, start directly at top of column) */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  {resultImageSrc ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <img
+                        src={resultImageSrc}
+                        style={{ maxWidth: '100%', maxHeight: '140px', objectFit: 'contain', borderRadius: '4px', border: '1px solid #dfe5e7' }}
+                        alt="Clinical Result"
                       />
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '1rem', color: '#344054', fontWeight: '500' }}>
-                          {isUploadingImage ? 'Uploading...' : 'Drag & drop image here'}
-                        </span>
-                        <span style={{ fontSize: '0.85rem', color: '#667085' }}>or</span>
+                      <span style={{ fontSize: '0.75rem', color: '#667085', marginTop: '6px', textAlign: 'center', fontWeight: '500' }}>
+                        Clinical Image
+                      </span>
+                      {calculation.status === 'DRAFT' && !isAdmin && (
                         <button
-                          className="secondary-button"
+                          className="secondary-button no-print"
                           type="button"
+                          onClick={() => void handleRemoveImage()}
                           disabled={isUploadingImage}
-                          onClick={(e) => {
-                            e.stopPropagation();
+                          style={{ borderColor: '#d92d20', color: '#d92d20', fontSize: '0.85rem', padding: '4px 8px', marginTop: '12px' }}
+                        >
+                          Remove Image
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    calculation.status === 'DRAFT' && !isAdmin && (
+                      <div className="no-print" style={{ width: '100%' }}>
+                        <div
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            setIsDraggingOver(true);
+                          }}
+                          onDragLeave={() => setIsDraggingOver(false)}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            setIsDraggingOver(false);
+                            const file = e.dataTransfer.files?.[0];
+                            if (file) {
+                              void handleUploadImage(file);
+                            }
+                          }}
+                          style={{
+                            border: isDraggingOver ? '2px dashed #009ba6' : '2px dashed #e5e7eb',
+                            borderRadius: '8px',
+                            padding: '16px',
+                            textAlign: 'center',
+                            backgroundColor: isDraggingOver ? '#f0fbfc' : '#fcfcfd',
+                            transition: 'all 0.2s ease',
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => {
                             document.getElementById('file-upload-input')?.click();
                           }}
-                          style={{ padding: '6px 12px', fontSize: '0.85rem' }}
                         >
-                          Choose Image
-                        </button>
-                        <span style={{ fontSize: '0.75rem', color: '#98a2b3' }}>
-                          JPG / PNG / WEBP (Max 10 MB)
-                        </span>
+                          <input
+                            id="file-upload-input"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            style={{ display: 'none' }}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                void handleUploadImage(file);
+                              }
+                            }}
+                          />
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '0.85rem', color: '#344054', fontWeight: '500' }}>
+                              {isUploadingImage ? 'Uploading...' : 'Drag image here'}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: '#667085' }}>or</span>
+                            <button
+                              className="secondary-button"
+                              type="button"
+                              disabled={isUploadingImage}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                document.getElementById('file-upload-input')?.click();
+                              }}
+                              style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                            >
+                              Choose
+                            </button>
+                          </div>
+                        </div>
+                        {uploadError && (
+                          <div style={{ marginTop: '6px', color: '#d92d20', fontSize: '0.75rem', fontWeight: '500' }}>
+                            {uploadError}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                    {uploadError && (
-                      <div style={{ marginTop: '8px', color: '#d92d20', fontSize: '0.85rem', fontWeight: '500' }}>
-                        {uploadError}
-                      </div>
-                    )}
+                    )
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Layout without image */
+              <section className="report-section" style={{ marginTop: '28px' }}>
+                <h2>Treatment Details</h2>
+                <div className="report-details-grid">
+                  <div>
+                    <span>Limb Type</span>
+                    <strong>{formatLimbType(calculation.limb_type)}</strong>
                   </div>
-                )
-              )}
-            </section>
-          )}
+                  <div>
+                    <span>Billing Volume</span>
+                    <strong>{calculation.volume} Litres</strong>
+                  </div>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <span>Duration</span>
+                    <strong>{calculation.duration_days} days</strong>
+                  </div>
+                </div>
+              </section>
+            );
+          })()}
 
           {/* ================= COST BREAKDOWN ================= */}
-          <section className="report-section report-cost-section">
+          <section className="report-section report-cost-section" style={{ marginTop: '16px' }}>
             <h2>Cost Breakdown</h2>
 
             {/* Base treatment */}
@@ -570,7 +578,7 @@ export default function CalculationReportPlaceholder() {
           <footer className="report-footer">
             <div className="report-footer-meta">
               <span style={{ fontStyle: 'italic', fontSize: '0.8rem', color: '#667085' }}>
-                Note: This cost estimate is valid for 30 days from the date of billing.
+                Note: This cost estimate is valid for 90 days from the date of billing.
               </span>
             </div>
 
