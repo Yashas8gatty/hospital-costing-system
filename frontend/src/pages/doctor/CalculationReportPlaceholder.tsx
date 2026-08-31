@@ -155,9 +155,9 @@ export default function CalculationReportPlaceholder() {
           <button
             className="primary-button"
             type="button"
-            onClick={() => navigate('/doctor')}
+            onClick={() => navigate(isAdmin ? '/admin/billing-history' : '/doctor')}
           >
-            Back to Calculator
+            {isAdmin ? 'Back to Billing History' : 'Back to Calculator'}
           </button>
         </div>
       </main>
