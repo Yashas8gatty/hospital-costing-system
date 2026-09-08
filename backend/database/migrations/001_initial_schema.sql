@@ -854,7 +854,7 @@ VALUES
   ('BILATERAL', 21, '[71.0,72.0)'::numrange, 4, 123498.00),
   ('BILATERAL', 21, '[8.0,9.0)'::numrange, 4, 88733.00),
   ('BILATERAL', 21, '[9.0,10.0)'::numrange, 4, 88733.00),
-  ('UNILATERAL', 7, '[0,2.0)'::numrange, 1, 270.00),
+  ('UNILATERAL', 7, '[0,2.0)'::numrange, 1, 26263.00),
   ('UNILATERAL', 7, '[10.0,11.0)'::numrange, 1, 29714.00),
   ('UNILATERAL', 7, '[11.0,12.0)'::numrange, 1, 30424.00),
   ('UNILATERAL', 7, '[12.0,13.0)'::numrange, 1, 30424.00),
