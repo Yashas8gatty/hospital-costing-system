@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "migrate": "node scripts/migrate.js",
+    "migrate:status": "node scripts/migrateStatus.js"
   },
   "keywords": [],
   "author": "",

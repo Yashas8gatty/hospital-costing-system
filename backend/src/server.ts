@@ -12,7 +12,7 @@ import doctorRoutes, { adminDoctorRouter } from "./routes/doctorRoutes";
 import calculationRoutes from "./routes/calculationRoutes";
 import userRoutes from "./routes/userRoutes";
 import billingHistoryRoutes from "./routes/admin/billingHistoryRoutes";
-import { ensureAuditTable, ensureCalculationRecordsTable, ensureDoctorsTable, ensureUsersTable } from "./config/database";
+import { checkDatabaseConnection } from "./config/database";
 
 dotenv.config();
 
@@ -44,15 +44,12 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
-    await ensureUsersTable();
-    await ensureAuditTable();
-    await ensureDoctorsTable();
-    await ensureCalculationRecordsTable();
+    await checkDatabaseConnection();
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
     });
   } catch (error) {
-    console.error("Failed to initialize database schema:", error);
+    console.error("Failed to connect to database:", error);
     process.exit(1);
   }
 };
